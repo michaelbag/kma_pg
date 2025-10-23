@@ -1,11 +1,41 @@
 # PostgreSQL Backup Manager
 
+[![Development Status](https://img.shields.io/badge/status-in%20development-orange.svg)](https://github.com/michaelbag/kma_pg)
+[![Testing Status](https://img.shields.io/badge/testing-in%20progress-yellow.svg)](https://github.com/michaelbag/kma_pg)
+[![License](https://img.shields.io/badge/license-GPL%20v3.0-blue.svg)](https://github.com/michaelbag/kma_pg/blob/main/LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/michaelbag/kma_pg)
+
 **Version:** 1.0.0  
 **Author:** Michael BAG  
 **Email:** mk@remark.pro  
 **Telegram:** https://t.me/michaelbag  
+**Status:** 🚧 In Development & Testing
 
 Script application for automatic backup of PostgreSQL databases.
+
+## 🚧 Development Status
+
+**Current Status:** In Development & Testing  
+**Version:** 1.0.0 (Beta)  
+**Stability:** Under active development  
+
+### Development Roadmap:
+- ✅ Core backup functionality implemented
+- ✅ Remote storage support (FTP, WebDAV, CIFS/Samba)
+- ✅ Multi-database configuration
+- ✅ Interactive setup wizard
+- 🔄 **Currently testing:** Production environment compatibility
+- 🔄 **Currently testing:** Remote storage reliability
+- 🔄 **Currently testing:** Error handling and recovery
+- 📋 **Planned:** Performance optimization
+- 📋 **Planned:** Additional storage providers
+- 📋 **Planned:** Web interface for management
+
+### Testing Status:
+- 🧪 **Unit tests:** In progress
+- 🧪 **Integration tests:** In progress  
+- 🧪 **Production testing:** In progress
+- 🧪 **Cross-platform testing:** Planned
 
 ## Features
 
@@ -20,6 +50,8 @@ Script application for automatic backup of PostgreSQL databases.
 - Remote storage connection testing
 
 ## Installation
+
+> ⚠️ **Warning:** This software is currently in development and testing phase. Use with caution in production environments. Always test thoroughly before deploying.
 
 1. Clone or download the project
 2. Create and activate virtual environment:

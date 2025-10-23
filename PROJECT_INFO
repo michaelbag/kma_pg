@@ -1,5 +1,6 @@
 Project: PostgreSQL Backup Manager
-Version: 1.0.0
+Version: 1.0.0 (Beta)
+Status: In Development & Testing
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -13,4 +14,10 @@ Script application for automatic backup of PostgreSQL databases with support for
 - Automatic cleanup of old backups
 - Detailed logging
 
-License: MIT License
+Development Status:
+- Core functionality: Complete
+- Testing phase: In progress
+- Production ready: No (Beta version)
+- Stability: Under active development
+
+License: GNU GPL v3.0
