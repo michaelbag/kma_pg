@@ -53,19 +53,24 @@ Script application for automatic backup of PostgreSQL databases.
 
 > ⚠️ **Warning:** This software is currently in development and testing phase. Use with caution in production environments. Always test thoroughly before deploying.
 
-### Quick Setup (Windows)
+### Quick Setup
 
-**For Windows users, use the automated setup script:**
-
+**For Windows users:**
 ```cmd
 # Run the Windows initialization script
 init_project_windows.bat
 ```
 
-**Or use PowerShell:**
-```powershell
-# Run the PowerShell initialization script
-.\init_project_windows.ps1
+**For Linux users:**
+```bash
+# Run the Linux initialization script
+./init_project.sh
+```
+
+**For Ubuntu Server 18.04/20.04:**
+```bash
+# Run the Ubuntu Server specific script
+./init_ubuntu_server.sh
 ```
 
 ### Manual Setup
@@ -530,6 +535,7 @@ kma_pg/
 ├── backups/                 # Backups
 ├── venv/                    # Virtual environment
 ├── init_project.sh          # Linux/macOS initialization script
+├── init_ubuntu_server.sh    # Ubuntu Server 18.04/20.04 setup script
 ├── init_project_windows.bat # Windows batch initialization script
 ├── init_project_windows.ps1 # Windows PowerShell initialization script
 ├── quick_start_windows.bat  # Windows quick start menu
