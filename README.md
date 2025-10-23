@@ -53,6 +53,23 @@ Script application for automatic backup of PostgreSQL databases.
 
 > ⚠️ **Warning:** This software is currently in development and testing phase. Use with caution in production environments. Always test thoroughly before deploying.
 
+### Quick Setup (Windows)
+
+**For Windows users, use the automated setup script:**
+
+```cmd
+# Run the Windows initialization script
+init_project_windows.bat
+```
+
+**Or use PowerShell:**
+```powershell
+# Run the PowerShell initialization script
+.\init_project_windows.ps1
+```
+
+### Manual Setup
+
 1. Clone or download the project
 2. Create and activate virtual environment:
 
@@ -361,6 +378,29 @@ python src/kma_pg_backup.py --auto-backup-only
 python src/kma_pg_backup.py -a
 ```
 
+### Windows Quick Start
+
+**Use the interactive quick start script:**
+```cmd
+# Run the quick start menu
+quick_start_windows.bat
+```
+
+**Or run individual commands:**
+```cmd
+# Activate virtual environment first
+venv\Scripts\activate
+
+# Test connection
+python src\kma_pg_backup.py --test-connection
+
+# Create backup
+python src\kma_pg_backup.py
+
+# Restore database
+python src\kma_pg_restore.py --backup-file backups\your_backup.dump --database your_db --create-db
+```
+
 ### Multi-database configuration
 ```bash
 # Backup all configured databases (multi-database mode)
@@ -484,9 +524,16 @@ kma_pg/
 │       ├── example_staging.yaml   # Example staging database config
 │       ├── example_development.yaml # Example development database config
 │       └── example_analytics.yaml # Example analytics database config
+├── scripts/
+│   └── backup_cron.sh       # Linux/macOS cron script
 ├── logs/                    # Logs
 ├── backups/                 # Backups
 ├── venv/                    # Virtual environment
+├── init_project.sh          # Linux/macOS initialization script
+├── init_project_windows.bat # Windows batch initialization script
+├── init_project_windows.ps1 # Windows PowerShell initialization script
+├── quick_start_windows.bat  # Windows quick start menu
+├── WINDOWS_SETUP.md         # Detailed Windows setup guide
 └── requirements.txt         # Python dependencies
 ```
 
