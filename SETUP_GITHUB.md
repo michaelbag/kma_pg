@@ -1,66 +1,66 @@
-# Настройка GitHub репозитория для kma_pg
+# GitHub Repository Setup for kma_pg
 
-## Шаги для создания репозитория на GitHub:
+## Steps to create repository on GitHub:
 
-### 1. Создание репозитория на GitHub.com
+### 1. Create repository on GitHub.com
 
-1. Перейдите на https://github.com/kma_pg
-2. Нажмите кнопку "New repository" или "+"
-3. Заполните форму:
+1. Go to https://github.com/michaelbag
+2. Click "New repository" or "+" button
+3. Fill the form:
    - **Repository name**: `kma_pg`
    - **Description**: `PostgreSQL Backup Manager - Automated backup and restore system for PostgreSQL databases`
    - **Visibility**: Public
-   - **НЕ** инициализируйте с README, .gitignore или лицензией (у нас уже есть эти файлы)
-4. Нажмите "Create repository"
+   - **DO NOT** initialize with README, .gitignore, or license (we already have these files)
+4. Click "Create repository"
 
-### 2. Отправка локального репозитория на GitHub
+### 2. Push local repository to GitHub
 
-После создания репозитория на GitHub выполните команды:
+After creating the repository on GitHub, run these commands:
 
 ```bash
-# Перейдите в директорию проекта
+# Navigate to project directory
 cd /Users/mihailkudravcev/Projects/kma_pg
 
-# Добавьте удаленный репозиторий (если еще не добавлен)
-git remote add origin https://github.com/kma_pg/kma_pg.git
+# Add remote repository (if not already added)
+git remote add origin https://github.com/michaelbag/kma_pg.git
 
-# Отправьте код на GitHub
+# Push code to GitHub
 git push -u origin main
 ```
 
-### 3. Проверка результата
+### 3. Verify result
 
-После выполнения команд репозиторий будет доступен по адресу:
-**https://github.com/kma_pg/kma_pg**
+After running the commands, the repository will be available at:
+**https://github.com/michaelbag/kma_pg**
 
-## Информация о проекте
+## Project Information
 
-- **Название**: PostgreSQL Backup Manager
-- **Версия**: 1.0.0
-- **Автор**: Michael BAG <mk@remark.pro>
+- **Name**: PostgreSQL Backup Manager
+- **Version**: 1.0.0
+- **Author**: Michael BAG <mk@remark.pro>
 - **Telegram**: https://t.me/michaelbag
-- **Лицензия**: GNU GPL v3.0
+- **License**: GNU GPL v3.0
 
-## Содержимое репозитория
+## Repository Contents
 
-✅ Полная система резервного копирования PostgreSQL  
-✅ Поддержка множественных форматов backup  
-✅ Удаленное хранилище (FTP, WebDAV, CIFS/Samba)  
-✅ Многобазовая конфигурация  
-✅ Интерактивная настройка  
-✅ Подробная документация  
-✅ Примеры конфигураций  
-✅ Виртуальное окружение Python  
+✅ Complete PostgreSQL backup system  
+✅ Multiple backup format support  
+✅ Remote storage (FTP, WebDAV, CIFS/Samba)  
+✅ Multi-database configuration  
+✅ Interactive setup  
+✅ Comprehensive documentation  
+✅ Configuration examples  
+✅ Python virtual environment  
 
-## Структура файлов
+## File Structure
 
 ```
 kma_pg/
-├── src/                    # Исходный код Python
-├── config/                 # Примеры конфигураций
-├── scripts/               # Скрипты автоматизации
-├── README.md              # Основная документация
-├── LICENSE                # Лицензия GNU GPL v3.0
-├── requirements.txt       # Python зависимости
-└── .gitignore            # Исключения для Git
+├── src/                    # Python source code
+├── config/                 # Configuration examples
+├── scripts/               # Automation scripts
+├── README.md              # Main documentation
+├── LICENSE                # GNU GPL v3.0 license
+├── requirements.txt       # Python dependencies
+└── .gitignore            # Git exclusions
 ```
