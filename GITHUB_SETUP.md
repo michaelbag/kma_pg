@@ -2,7 +2,7 @@
 
 ## Create Repository on GitHub
 
-1. Go to https://github.com/kma_pg
+1. Go to https://github.com/michaelbag
 2. Click "New repository" or "+" button
 3. Repository name: `kma_pg`
 4. Description: `PostgreSQL Backup Manager - Automated backup and restore system for PostgreSQL databases`
@@ -19,7 +19,7 @@ After creating the repository on GitHub, run these commands:
 cd /Users/mihailkudravcev/Projects/kma_pg
 
 # Add remote origin (if not already added)
-git remote add origin https://github.com/kma_pg/kma_pg.git
+git remote add origin https://github.com/michaelbag/kma_pg.git
 
 # Push to GitHub
 git push -u origin main
@@ -27,7 +27,7 @@ git push -u origin main
 
 ## Repository Information
 
-- **Repository URL**: https://github.com/kma_pg/kma_pg
+- **Repository URL**: https://github.com/michaelbag/kma_pg
 - **Project Name**: PostgreSQL Backup Manager
 - **Version**: 1.0.0
 - **Author**: Michael BAG <mk@remark.pro>
