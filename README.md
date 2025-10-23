@@ -55,9 +55,23 @@ Script application for automatic backup of PostgreSQL databases.
 
 1. Clone or download the project
 2. Create and activate virtual environment:
+
+**Linux/macOS:**
 ```bash
 python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
+```
+
+**Windows:**
+```cmd
+python -m venv venv
+venv\Scripts\activate
+```
+
+**Windows PowerShell:**
+```powershell
+python -m venv venv
+venv\Scripts\Activate.ps1
 ```
 
 3. Install dependencies:
@@ -95,9 +109,10 @@ pip install -r requirements.txt
    sudo dnf install postgresql
    ```
    
-   **Windows:**
-   - Download and install PostgreSQL from https://www.postgresql.org/download/windows/
-   - Add PostgreSQL bin directory to system PATH
+**Windows:**
+- Download and install PostgreSQL from https://www.postgresql.org/download/windows/
+- Add PostgreSQL bin directory to system PATH
+- **Detailed Windows setup guide:** See [WINDOWS_SETUP.md](WINDOWS_SETUP.md)
    
    **Verify installation:**
    ```bash
@@ -526,11 +541,10 @@ All operations are logged to `logs/backup.log` file and displayed in console. Lo
 
 This project uses Python virtual environment. Always activate it before running scripts:
 
+### Linux/macOS:
 ```bash
 # Activate virtual environment
-source venv/bin/activate  # On Linux/macOS
-# or
-venv\Scripts\activate     # On Windows
+source venv/bin/activate
 
 # Run scripts
 python src/kma_pg_backup.py
@@ -538,6 +552,54 @@ python src/kma_pg_restore.py
 
 # Deactivate when done
 deactivate
+```
+
+### Windows Command Prompt (cmd):
+```cmd
+# Activate virtual environment
+venv\Scripts\activate
+
+# Run scripts
+python src\kma_pg_backup.py
+python src\kma_pg_restore.py
+
+# Deactivate when done
+deactivate
+```
+
+### Windows PowerShell:
+```powershell
+# Activate virtual environment
+venv\Scripts\Activate.ps1
+
+# Run scripts
+python src\kma_pg_backup.py
+python src\kma_pg_restore.py
+
+# Deactivate when done
+deactivate
+```
+
+### Windows Setup Troubleshooting:
+
+**If you get "execution policy" error in PowerShell:**
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+**If Python is not found:**
+- Make sure Python is installed and added to PATH
+- Try using `py` instead of `python`:
+```cmd
+py -m venv venv
+venv\Scripts\activate
+py src\kma_pg_backup.py
+```
+
+**Alternative activation method:**
+```cmd
+# Direct activation without path
+venv\Scripts\activate.bat
 ```
 
 ## Troubleshooting
