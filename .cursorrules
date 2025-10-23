@@ -1,0 +1,115 @@
+# PostgreSQL Backup Manager - Cursor AI Rules
+
+## Project Overview
+This is a PostgreSQL backup and restore management system written in Python. The project uses a virtual environment for dependency management.
+
+## Virtual Environment Setup
+**CRITICAL: Always use the virtual environment for this project**
+
+### Activation Commands:
+```bash
+# Linux/macOS
+source venv/bin/activate
+
+# Windows
+venv\Scripts\activate
+```
+
+### Deactivation:
+```bash
+deactivate
+```
+
+## Project Structure
+- `src/` - Python source code
+  - `kma_pg_backup.py` - Main backup script
+  - `kma_pg_storage.py` - Remote storage module
+  - `kma_pg_restore.py` - Database restore script
+  - `kma_pg_config_setup.py` - Interactive configuration setup
+  - `kma_pg_config_manager.py` - Configuration manager for multiple databases
+- `config/` - Configuration files (YAML and JSON supported)
+- `venv/` - Python virtual environment
+- `logs/` - Application logs
+- `backups/` - Database backup files
+
+## Key Dependencies
+- psycopg2-binary==2.9.9 (PostgreSQL adapter)
+- PyYAML==6.0.1 (YAML configuration support)
+- requests==2.31.0 (HTTP client for WebDAV)
+- webdavclient3==3.14.6 (WebDAV client)
+
+## Running the Project
+**Always activate virtual environment before running any Python scripts:**
+
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Create configuration interactively
+python src/kma_pg_config_setup.py
+
+# Test database connection
+python src/kma_pg_backup.py --test-connection
+# or using short parameter
+python src/kma_pg_backup.py -t
+
+# Test remote storage connection
+python src/kma_pg_backup.py --test-remote-storage
+# or using short parameter
+python src/kma_pg_backup.py -r
+
+# Create backup
+python src/kma_pg_backup.py
+
+# Create automatic backup only
+python src/kma_pg_backup.py --auto-backup-only
+# or using short parameter
+python src/kma_pg_backup.py -a
+
+# Multi-database configuration
+python src/kma_pg_backup.py  # All databases
+python src/kma_pg_backup.py --database-config production  # Specific database
+
+# Configuration management
+python src/kma_pg_config_manager.py --list
+python src/kma_pg_config_manager.py --show production
+
+# Restore database
+python src/kma_pg_restore.py --backup-file backup_file.dump --database target_db --create-db
+# or using short parameters
+python src/kma_pg_restore.py -f backup_file.dump -d target_db -n
+```
+
+## Configuration
+- Primary config: `config/config.yaml` (YAML format)
+- Production config: `config/config.production.yaml`
+- Example config: `config/config.example.yaml`
+- JSON configs also supported for backward compatibility
+- Remote storage support: WebDAV and CIFS/Samba
+
+## Development Guidelines
+1. Always work within the virtual environment
+2. Use YAML for new configuration files
+3. All code comments and docstrings are in English
+4. Test database connection before running backup/restore operations
+5. Check logs in `logs/` directory for troubleshooting
+
+## Testing Commands
+```bash
+# Activate environment
+source venv/bin/activate
+
+# Test configuration loading
+python -c "from src.kma_pg_backup import PostgreSQLBackupManager; print('Config loaded successfully')"
+
+# Test with specific config
+python src/kma_pg_backup.py --config config/config.yaml --test-connection
+```
+
+## Important Notes
+- PostgreSQL server must be running for backup/restore operations
+- Virtual environment is required for all Python operations
+- Configuration supports both YAML and JSON formats
+- All user-facing messages and logs are in English
+- Backup files are stored in `backups/` directory
+- Logs are written to `logs/` directory

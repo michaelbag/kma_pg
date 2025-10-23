@@ -1,0 +1,72 @@
+# Example Staging Database Configuration
+# Copy this file and rename to your database name (e.g., staging.yaml)
+
+# Database connection settings
+database:
+  # Database name (must match the actual database name)
+  name: staging
+  
+  # PostgreSQL server hostname or IP address
+  host: staging-db-server.company.com
+  
+  # PostgreSQL server port (default: 5432)
+  port: 5432
+  
+  # Database username for backup operations
+  username: staging_backup_user
+  
+  # Database password
+  password: "your_staging_password"
+  
+  # Enable this database for backup operations
+  enabled: true
+  
+  # Manual backup only (not included in automatic backup)
+  auto_backup: false  # Manual backup only
+
+# Database-specific backup settings
+backup:
+  # Directory for storing backup files
+  output_dir: /var/backups/postgresql/staging
+  
+  # Backup format: 'custom' (binary, recommended) or 'plain' (SQL text)
+  format: custom
+  
+  # Enable compression for backup files
+  compress: true
+  
+  # Number of days to keep backup files (shorter retention for staging)
+  retention_days: 30
+  
+  # Remote storage configuration
+  remote_storage:
+    # Enable remote storage upload
+    enabled: true
+    
+    # Remote storage type: 'webdav', 'ftp', or 'cifs'
+    type: "cifs"
+    
+    # CIFS/Samba configuration
+    cifs:
+      # Samba server share path
+      server: "//your-samba-server.com/staging_backups"
+      
+      # Samba username
+      username: "your_samba_username"
+      
+      # Samba password
+      password: "your_samba_password"
+      
+      # Local mount point for the share
+      mount_point: "/mnt/staging_backup"
+      
+      # Automatically mount the share before backup
+      auto_mount: true
+
+# Database-specific logging settings
+logging:
+  # Logging level: DEBUG, INFO, WARNING, ERROR (DEBUG for staging)
+  level: DEBUG
+  
+  # Path to log file
+  file: /var/log/postgresql_backup_staging.log

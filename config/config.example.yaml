@@ -1,0 +1,29 @@
+# PostgreSQL Backup Manager - Example Main Configuration
+# Copy this file to config.yaml and modify according to your needs
+
+# Global backup settings (can be overridden by individual database configurations)
+backup:
+  # Directory where backup files will be stored
+  output_dir: backups
+  
+  # Backup format: 'custom' (binary, recommended) or 'plain' (SQL text)
+  format: custom
+  
+  # Enable compression for backup files
+  compress: true
+  
+  # Number of days to keep backup files (older files will be deleted)
+  retention_days: 30
+  
+  # Remote storage settings (can be overridden by individual databases)
+  remote_storage:
+    # Enable/disable remote storage upload
+    enabled: false  # Individual databases can override this
+
+# Global logging settings
+logging:
+  # Logging level: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+  
+  # Path to log file
+  file: logs/backup.log

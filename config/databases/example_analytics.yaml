@@ -1,0 +1,78 @@
+# Example Analytics Database Configuration
+# Copy this file and rename to your database name (e.g., analytics.yaml)
+
+# Database connection settings
+database:
+  # Database name (must match the actual database name)
+  name: analytics
+  
+  # PostgreSQL server hostname or IP address
+  host: analytics-db.company.com
+  
+  # PostgreSQL server port (default: 5432)
+  port: 5432
+  
+  # Database username for backup operations
+  username: analytics_backup
+  
+  # Database password
+  password: "your_analytics_password"
+  
+  # Enable this database for backup operations
+  enabled: true
+  
+  # Include this database in automatic backup (cron jobs)
+  auto_backup: true
+
+# Database-specific backup settings
+backup:
+  # Directory for storing backup files
+  output_dir: /var/backups/postgresql/analytics
+  
+  # Backup format: 'custom' (binary, recommended) or 'plain' (SQL text)
+  format: custom
+  
+  # Enable compression for backup files
+  compress: true
+  
+  # Longer retention period for analytics data
+  retention_days: 180  # Longer retention for analytics
+  
+  # Remote storage configuration
+  remote_storage:
+    # Enable remote storage upload
+    enabled: true
+    
+    # Remote storage type: 'webdav', 'ftp', or 'cifs'
+    type: "ftp"
+    
+    # FTP configuration
+    ftp:
+      # FTP server hostname or IP address
+      host: "ftp.your-analytics-backup.com"
+      
+      # FTP server port (default: 21)
+      port: 21
+      
+      # FTP username
+      username: "your_ftp_username"
+      
+      # FTP password
+      password: "your_ftp_password"
+      
+      # Remote directory on FTP server
+      remote_dir: "/analytics_backups"
+      
+      # Use passive mode (recommended for firewalls)
+      passive_mode: true
+      
+      # Use SSL/TLS encryption (recommended: true)
+      ssl: false
+
+# Database-specific logging settings
+logging:
+  # Logging level: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+  
+  # Path to log file
+  file: /var/log/postgresql_backup_analytics.log

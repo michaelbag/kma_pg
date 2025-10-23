@@ -1,0 +1,69 @@
+# Example Production Database Configuration
+# Copy this file and rename to your database name (e.g., production.yaml)
+
+# Database connection settings
+database:
+  # Database name (must match the actual database name)
+  name: production
+  
+  # PostgreSQL server hostname or IP address
+  host: prod-db-server.company.com
+  
+  # PostgreSQL server port (default: 5432)
+  port: 5432
+  
+  # Database username for backup operations
+  username: backup_user
+  
+  # Database password (use strong, secure passwords for production)
+  password: "your_secure_production_password"
+  
+  # Enable this database for backup operations
+  enabled: true
+  
+  # Include this database in automatic backup (cron jobs)
+  auto_backup: true
+
+# Database-specific backup settings
+backup:
+  # Directory for storing backup files (use absolute path for production)
+  output_dir: /var/backups/postgresql/production
+  
+  # Backup format: 'custom' (binary, recommended) or 'plain' (SQL text)
+  format: custom
+  
+  # Enable compression for backup files
+  compress: true
+  
+  # Number of days to keep backup files (longer retention for production)
+  retention_days: 90
+  
+  # Remote storage configuration
+  remote_storage:
+    # Enable remote storage upload
+    enabled: true
+    
+    # Remote storage type: 'webdav', 'ftp', or 'cifs'
+    type: "webdav"
+    
+    # WebDAV configuration (for Nextcloud, OwnCloud, etc.)
+    webdav:
+      # WebDAV server URL
+      url: "https://your-webdav-server.com/remote.php/dav/files/backup/production"
+      
+      # WebDAV username
+      username: "your_webdav_username"
+      
+      # WebDAV password
+      password: "your_webdav_password"
+      
+      # Verify SSL certificate (recommended: true)
+      verify_ssl: true
+
+# Database-specific logging settings
+logging:
+  # Logging level: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+  
+  # Path to log file (use absolute path for production)
+  file: /var/log/postgresql_backup_production.log

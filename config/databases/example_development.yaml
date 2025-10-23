@@ -1,0 +1,51 @@
+# Example Development Database Configuration
+# Copy this file and rename to your database name (e.g., development.yaml)
+
+# Database connection settings
+database:
+  # Database name (must match the actual database name)
+  name: development
+  
+  # PostgreSQL server hostname (localhost for development)
+  host: localhost
+  
+  # PostgreSQL server port (default: 5432)
+  port: 5432
+  
+  # Database username for backup operations
+  username: dev_user
+  
+  # Database password (can be simple for development)
+  password: "your_dev_password"
+  
+  # Enable this database for backup operations
+  enabled: true
+  
+  # Manual backup only (not included in automatic backup)
+  auto_backup: false  # Manual backup only
+
+# Database-specific backup settings
+backup:
+  # Directory for storing backup files (relative path for development)
+  output_dir: backups/development
+  
+  # Plain SQL format for easier inspection and debugging
+  format: plain  # Uncompressed for easier inspection
+  
+  # Disable compression for easier file inspection
+  compress: false
+  
+  # Short retention period for development
+  retention_days: 7
+  
+  # No remote storage for development
+  remote_storage:
+    enabled: false  # No remote storage for development
+
+# Database-specific logging settings
+logging:
+  # Debug level for development (more verbose logging)
+  level: DEBUG
+  
+  # Path to log file (relative path for development)
+  file: logs/backup_development.log

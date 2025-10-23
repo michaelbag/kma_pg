@@ -1,0 +1,16 @@
+Project: PostgreSQL Backup Manager
+Version: 1.0.0
+Author: Michael BAG
+Email: mk@remark.pro
+Telegram: https://t.me/michaelbag
+
+Description:
+Script application for automatic backup of PostgreSQL databases with support for:
+- Multiple backup formats (custom, plain)
+- Backup compression
+- Remote storage (FTP, WebDAV, CIFS/Samba)
+- Multi-database configuration
+- Automatic cleanup of old backups
+- Detailed logging
+
+License: MIT License
