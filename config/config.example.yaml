@@ -12,6 +12,10 @@ backup:
   # Enable compression for backup files
   compress: true
   
+  # Exclude system schemas and extensions from backup (recommended)
+  # This prevents issues with adminpack and other system extensions during restore
+  exclude_system_objects: true
+  
   # Advanced retention policy for local storage
   retention:
     # Local storage retention policy

@@ -227,6 +227,18 @@ class PostgreSQLBackupManager:
         elif backup_format == 'plain':
             cmd.append('-Fp')
         
+        # Exclude system schemas and extensions to avoid restore issues
+        exclude_system = backup_config.get('exclude_system_objects', True)
+        if exclude_system:
+            cmd.extend([
+                '--exclude-schema=information_schema',
+                '--exclude-schema=pg_catalog', 
+                '--exclude-schema=pg_toast',
+                '--exclude-schema=pg_temp_1',
+                '--exclude-schema=pg_toast_temp_1'
+            ])
+            self.logger.info("Excluding system schemas from backup to prevent restore issues")
+        
         if compress and backup_format != 'custom':
             cmd.extend(['-Z', '9'])
         

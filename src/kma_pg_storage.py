@@ -627,3 +627,261 @@ class RemoteStorageManager:
         # In practice, you'd need to implement proper file age detection
         # based on the specific remote storage type
         return False  # Conservative approach - don't delete by default
+    
+    def download_backup(self, remote_filename: str, local_path: str) -> bool:
+        """Download backup file from remote storage"""
+        if not self.is_enabled():
+            return False
+        
+        try:
+            if self.storage_type == 'webdav':
+                return self._download_from_webdav(remote_filename, local_path)
+            elif self.storage_type == 'cifs':
+                return self._download_from_cifs(remote_filename, local_path)
+            elif self.storage_type == 'ftp':
+                return self._download_from_ftp(remote_filename, local_path)
+            else:
+                raise ValueError(f"Unsupported storage type: {self.storage_type}")
+        except Exception as e:
+            print(f"Remote storage download error: {e}")
+            return False
+    
+    def _download_from_webdav(self, remote_filename: str, local_path: str) -> bool:
+        """Download file from WebDAV server"""
+        webdav_config = self.remote_config.get('webdav', {})
+        
+        if not webdav_config:
+            raise ValueError("WebDAV configuration not found")
+        
+        # WebDAV client configuration
+        options = {
+            'webdav_hostname': webdav_config.get('url'),
+            'webdav_login': webdav_config.get('username'),
+            'webdav_password': webdav_config.get('password'),
+            'webdav_verify_ssl': webdav_config.get('verify_ssl', True)
+        }
+        
+        try:
+            from webdav3.client import Client
+            client = Client(options)
+            
+            # Download file
+            client.download_sync(remote_path=remote_filename, local_path=local_path)
+            return True
+            
+        except Exception as e:
+            print(f"WebDAV download error: {e}")
+            return False
+    
+    def _download_from_cifs(self, remote_filename: str, local_path: str) -> bool:
+        """Download file from CIFS/Samba server"""
+        cifs_config = self.remote_config.get('cifs', {})
+        
+        if not cifs_config:
+            raise ValueError("CIFS configuration not found")
+        
+        server = cifs_config.get('server')
+        username = cifs_config.get('username')
+        password = cifs_config.get('password')
+        mount_point = cifs_config.get('mount_point', '/mnt/backup_storage')
+        auto_mount = cifs_config.get('auto_mount', True)
+        
+        if not server or not username or not password:
+            raise ValueError("CIFS server, username, and password are required")
+        
+        try:
+            # Create mount point if it doesn't exist
+            os.makedirs(mount_point, exist_ok=True)
+            
+            # Mount CIFS share if auto_mount is enabled
+            if auto_mount:
+                # Check if already mounted
+                if not os.path.ismount(mount_point):
+                    self._mount_cifs_share(server, username, password, mount_point)
+                else:
+                    print(f"CIFS share already mounted at {mount_point}")
+            
+            # Check if mount point is accessible
+            if not os.path.ismount(mount_point):
+                raise ConnectionError(f"CIFS share not mounted at {mount_point}")
+            
+            # Copy file from CIFS share
+            remote_path = os.path.join(mount_point, remote_filename)
+            if os.path.exists(remote_path):
+                shutil.copy2(remote_path, local_path)
+                return True
+            else:
+                print(f"File not found on CIFS share: {remote_filename}")
+                return False
+                
+        except Exception as e:
+            print(f"CIFS download error: {e}")
+            return False
+        finally:
+            # Unmount CIFS share if auto_mount is enabled
+            if auto_mount:
+                self._unmount_cifs_share(mount_point)
+    
+    def _download_from_ftp(self, remote_filename: str, local_path: str) -> bool:
+        """Download file from FTP server"""
+        ftp_config = self.remote_config.get('ftp', {})
+        
+        if not ftp_config:
+            raise ValueError("FTP configuration not found")
+        
+        host = ftp_config.get('host')
+        username = ftp_config.get('username')
+        password = ftp_config.get('password')
+        port = ftp_config.get('port', 21)
+        
+        if not host or not username or not password:
+            raise ValueError("FTP host, username, and password are required")
+        
+        try:
+            import ftplib
+            
+            # Connect to FTP server
+            ftp = ftplib.FTP()
+            ftp.connect(host, port)
+            ftp.login(username, password)
+            
+            # Download file
+            with open(local_path, 'wb') as local_file:
+                ftp.retrbinary(f'RETR {remote_filename}', local_file.write)
+            
+            # Close connection
+            ftp.quit()
+            return True
+            
+        except Exception as e:
+            print(f"FTP download error: {e}")
+            return False
+    
+    def list_backups(self) -> List[str]:
+        """List available backup files in remote storage"""
+        if not self.is_enabled():
+            return []
+        
+        try:
+            if self.storage_type == 'webdav':
+                return self._list_webdav_backups()
+            elif self.storage_type == 'cifs':
+                return self._list_cifs_backups()
+            elif self.storage_type == 'ftp':
+                return self._list_ftp_backups()
+            else:
+                raise ValueError(f"Unsupported storage type: {self.storage_type}")
+        except Exception as e:
+            print(f"Remote storage list error: {e}")
+            return []
+    
+    def _list_webdav_backups(self) -> List[str]:
+        """List backup files from WebDAV server"""
+        webdav_config = self.remote_config.get('webdav', {})
+        
+        if not webdav_config:
+            return []
+        
+        # WebDAV client configuration
+        options = {
+            'webdav_hostname': webdav_config.get('url'),
+            'webdav_login': webdav_config.get('username'),
+            'webdav_password': webdav_config.get('password'),
+            'webdav_verify_ssl': webdav_config.get('verify_ssl', True)
+        }
+        
+        try:
+            from webdav3.client import Client
+            client = Client(options)
+            
+            # List files
+            files = client.list()
+            backup_files = [f for f in files if f.endswith(('.dump', '.sql', '.dump.gz', '.sql.gz'))]
+            return backup_files
+            
+        except Exception as e:
+            print(f"WebDAV list error: {e}")
+            return []
+    
+    def _list_cifs_backups(self) -> List[str]:
+        """List backup files from CIFS/Samba server"""
+        cifs_config = self.remote_config.get('cifs', {})
+        
+        if not cifs_config:
+            return []
+        
+        server = cifs_config.get('server')
+        username = cifs_config.get('username')
+        password = cifs_config.get('password')
+        mount_point = cifs_config.get('mount_point', '/mnt/backup_storage')
+        auto_mount = cifs_config.get('auto_mount', True)
+        
+        if not server or not username or not password:
+            return []
+        
+        try:
+            # Create mount point if it doesn't exist
+            os.makedirs(mount_point, exist_ok=True)
+            
+            # Mount CIFS share if auto_mount is enabled
+            if auto_mount:
+                # Check if already mounted
+                if not os.path.ismount(mount_point):
+                    self._mount_cifs_share(server, username, password, mount_point)
+                else:
+                    print(f"CIFS share already mounted at {mount_point}")
+            
+            # Check if mount point is accessible
+            if not os.path.ismount(mount_point):
+                return []
+            
+            # List files
+            backup_files = []
+            for file_path in Path(mount_point).iterdir():
+                if file_path.is_file() and file_path.suffix in ['.dump', '.sql']:
+                    backup_files.append(file_path.name)
+            
+            return backup_files
+            
+        except Exception as e:
+            print(f"CIFS list error: {e}")
+            return []
+        finally:
+            # Unmount CIFS share if auto_mount is enabled
+            if auto_mount:
+                self._unmount_cifs_share(mount_point)
+    
+    def _list_ftp_backups(self) -> List[str]:
+        """List backup files from FTP server"""
+        ftp_config = self.remote_config.get('ftp', {})
+        
+        if not ftp_config:
+            return []
+        
+        host = ftp_config.get('host')
+        username = ftp_config.get('username')
+        password = ftp_config.get('password')
+        port = ftp_config.get('port', 21)
+        
+        if not host or not username or not password:
+            return []
+        
+        try:
+            import ftplib
+            
+            # Connect to FTP server
+            ftp = ftplib.FTP()
+            ftp.connect(host, port)
+            ftp.login(username, password)
+            
+            # List files
+            files = ftp.nlst()
+            backup_files = [f for f in files if f.endswith(('.dump', '.sql', '.dump.gz', '.sql.gz'))]
+            
+            # Close connection
+            ftp.quit()
+            return backup_files
+            
+        except Exception as e:
+            print(f"FTP list error: {e}")
+            return []
