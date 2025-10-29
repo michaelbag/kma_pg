@@ -226,6 +226,33 @@ pip install -r requirements.txt
 
 ## Configuration
 
+### Interactive Configuration Builder
+
+For easy configuration creation, use the interactive builder that suggests values from existing configurations:
+
+```bash
+# Run the interactive configuration builder
+python src/kma_pg_config_builder.py
+```
+
+**Features:**
+- 🎯 Interactive step-by-step configuration creation
+- 🔍 Value suggestions from existing configurations
+- 📋 Auto-completion for all major fields
+- 🔒 Secure password input (not saved in suggestions)
+- ✅ Configuration preview before saving
+- 🎨 User-friendly interface with numbered options
+
+**Example workflow:**
+1. Choose database name from existing usernames
+2. Select PostgreSQL host from existing hosts
+3. Pick backup directory from existing paths
+4. Choose retention policy from existing values
+5. Select remote storage type and settings
+6. Preview and save configuration
+
+See [CONFIG_BUILDER.md](CONFIG_BUILDER.md) for detailed documentation.
+
 ### Advanced Retention Policy
 
 The backup manager now supports advanced multi-level retention policies with separate settings for local and remote storage:
@@ -702,7 +729,8 @@ kma_pg/
 │   ├── kma_pg_storage.py    # Remote storage module
 │   ├── kma_pg_restore.py    # Restore script
 │   ├── kma_pg_config_setup.py # Interactive configuration setup
-│   └── kma_pg_config_manager.py # Configuration manager
+│   ├── kma_pg_config_manager.py # Configuration manager
+│   └── kma_pg_config_builder.py # Interactive configuration builder
 ├── config/
 │   ├── config.example.yaml # Example main configuration
 │   └── databases/          # Example database configurations
