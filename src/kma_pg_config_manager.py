@@ -119,6 +119,30 @@ class DatabaseConfigManager:
         
         return None
     
+    def get_database_config_by_filename(self, config_filename: str) -> Optional[Dict[str, Any]]:
+        """Get configuration by filename (without extension)"""
+        config_file = self.databases_dir / f"{config_filename}.yaml"
+        
+        if not config_file.exists():
+            # Try with .yml extension
+            config_file = self.databases_dir / f"{config_filename}.yml"
+        
+        if not config_file.exists():
+            # Try with .json extension
+            config_file = self.databases_dir / f"{config_filename}.json"
+        
+        if not config_file.exists():
+            return None
+        
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                if config_file.suffix in ['.yaml', '.yml']:
+                    return yaml.safe_load(f)
+                else:
+                    return json.load(f)
+        except Exception as e:
+            raise ValueError(f"Error loading database configuration {config_filename}: {e}")
+    
     def save_database_config(self, database_name: str, config: Dict[str, Any]):
         """Save database configuration"""
         config_file = self.databases_dir / f"{database_name}.yaml"
@@ -201,7 +225,13 @@ class DatabaseConfigManager:
     def get_merged_config(self, database_name: str) -> Optional[Dict[str, Any]]:
         """Get merged configuration (main + database specific)"""
         main_config = self.get_main_config()
+        
+        # First try to find by database name
         db_config = self.get_database_config(database_name)
+        
+        # If not found, try to find by filename
+        if not db_config:
+            db_config = self.get_database_config_by_filename(database_name)
         
         if not db_config:
             return None

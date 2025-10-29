@@ -389,14 +389,13 @@ def main():
     parser.add_argument('--version', '-v', action='version', version=f'PostgreSQL Backup Manager v{version}\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
     parser.add_argument('--config', '-c', default='config/config.yaml',
                        help='Path to configuration file')
-    parser.add_argument('--database', '-d', help='Specific database name for backup')
+    parser.add_argument('--database-config', '-d', help='Use specific database configuration')
     parser.add_argument('--test-connection', '-t', action='store_true',
                        help='Only test database connection')
     parser.add_argument('--test-remote-storage', '-r', action='store_true',
                        help='Test remote storage connection')
     parser.add_argument('--auto-backup-only', '-a', action='store_true',
                        help='Backup only databases marked for automatic backup')
-    parser.add_argument('--database-config', help='Use specific database configuration')
     parser.add_argument('--cleanup-only', action='store_true',
                        help='Only perform cleanup without creating new backups')
     parser.add_argument('--cleanup-storage', choices=['local', 'remote', 'all'], default='all',
@@ -409,7 +408,7 @@ def main():
     try:
         # Determine configuration mode
         if args.database_config:
-            # Use specific database configuration
+            # Use specific database configuration by config name
             manager = PostgreSQLBackupManager(database_name=args.database_config)
         elif args.config:
             # Use legacy configuration file
@@ -446,11 +445,13 @@ def main():
                 manager.cleanup_old_backups(args.cleanup_storage)
             sys.exit(0)
         
-        if args.database:
-            # Backup specific database
+        if args.database_config:
+            # Backup specific database configuration
             if not manager.test_connection():
                 sys.exit(1)
-            backup_path = manager.create_backup(args.database)
+            # Use the actual database name from config, not the config name
+            actual_db_name = manager.config['database']['name']
+            backup_path = manager.create_backup(actual_db_name)
             if backup_path:
                 print(f"Backup created: {backup_path}")
             else:
