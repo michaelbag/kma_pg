@@ -44,29 +44,26 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Logs
+# Project specific
+backups/
 logs/
 *.log
-
-# Backups
-backups/
-*.dump
-*.sql
-*.gz
-
-# Configuration files with sensitive data
 config/config.yaml
-config/config.json
 config/databases/*.yaml
-config/databases/*.json
-!config/config.example.yaml
 !config/databases/example_*.yaml
+!config/config.example.yaml
 
 # Temporary files
 *.tmp
 *.temp
-.cache/
+*.bak
+*.backup
+
+# Archive files
+*.tar.gz
+*.zip
+*.rar
 
 # Test files
-test_*
+test_*.py
 *_test.py

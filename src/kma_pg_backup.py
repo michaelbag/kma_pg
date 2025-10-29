@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Backup Manager
-Version: 1.0.0
+Version: 1.1.0
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -23,6 +23,7 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from kma_pg_storage import RemoteStorageManager
 from kma_pg_config_manager import DatabaseConfigManager
+from kma_pg_retention import RetentionManager
 
 
 class PostgreSQLBackupManager:
@@ -49,6 +50,10 @@ class PostgreSQLBackupManager:
         
         self._setup_logging()
         self.remote_storage = RemoteStorageManager(self.config)
+        self.retention_manager = RetentionManager(self.config, self.logger)
+        
+        # Get remote retention settings
+        self.remote_retention = self.retention_manager.remote_retention
         
     def _load_legacy_config(self, config_path: str) -> Dict:
         """Load configuration from YAML or JSON file"""
@@ -242,29 +247,69 @@ class PostgreSQLBackupManager:
             self.logger.error(f"Error output: {e.stderr}")
             return None
     
-    def cleanup_old_backups(self):
-        """Clean up old backups"""
+    def cleanup_old_backups(self, storage_type: str = 'local'):
+        """
+        Clean up old backups using advanced retention policy
+        
+        Args:
+            storage_type: 'local' or 'remote' - which storage to clean up
+        """
         backup_config = self.config['backup']
-        output_dir = Path(backup_config['output_dir'])
-        retention_days = backup_config.get('retention_days', 30)
+        output_dir = backup_config['output_dir']
         
-        if not output_dir.exists():
-            return
+        # Clean up local storage
+        if storage_type == 'local':
+            self.logger.info("Starting local storage cleanup...")
+            stats = self.retention_manager.cleanup_old_backups(output_dir, 'local')
+            
+            if stats['deleted'] > 0:
+                self.logger.info(f"Local cleanup completed: deleted={stats['deleted']}, "
+                               f"kept={stats['kept']}, errors={stats['errors']}")
+            else:
+                self.logger.info("No files deleted from local storage")
         
-        cutoff_date = datetime.now().timestamp() - (retention_days * 24 * 3600)
-        deleted_count = 0
+        # Clean up remote storage if enabled
+        elif storage_type == 'remote' and self.remote_storage.is_enabled():
+            self.logger.info("Starting remote storage cleanup...")
+            remote_retention = self.remote_retention
+            retention_days = remote_retention.get('max_age', 30)
+            
+            stats = self.remote_storage.cleanup_old_backups(retention_days)
+            
+            if stats['deleted'] > 0:
+                self.logger.info(f"Remote cleanup completed: deleted={stats['deleted']}, "
+                               f"kept={stats['kept']}, errors={stats['errors']}")
+            else:
+                self.logger.info("No files deleted from remote storage")
         
-        for backup_file in output_dir.iterdir():
-            if backup_file.is_file() and backup_file.stat().st_mtime < cutoff_date:
-                try:
-                    backup_file.unlink()
-                    deleted_count += 1
-                    self.logger.info(f"Deleted old file: {backup_file.name}")
-                except Exception as e:
-                    self.logger.error(f"Error deleting file {backup_file.name}: {e}")
+        else:
+            self.logger.warning(f"Cleanup skipped for {storage_type} storage")
+    
+    def cleanup_all_storages(self):
+        """Clean up both local and remote storages"""
+        self.logger.info("Starting comprehensive cleanup of all storages...")
         
-        if deleted_count > 0:
-            self.logger.info(f"Deleted {deleted_count} old backup files")
+        # Clean up local storage
+        self.cleanup_old_backups('local')
+        
+        # Clean up remote storage if enabled
+        if self.remote_storage.is_enabled():
+            self.cleanup_old_backups('remote')
+        
+        # Log retention policy summary
+        summary = self.retention_manager.get_retention_summary()
+        self.logger.info(f"Retention policy summary: {summary}")
+    
+    def validate_retention_config(self):
+        """Validate retention configuration and log any issues"""
+        issues = self.retention_manager.validate_retention_config()
+        
+        if issues:
+            self.logger.warning("Retention configuration issues found:")
+            for issue in issues:
+                self.logger.warning(f"  - {issue}")
+        else:
+            self.logger.info("Retention configuration is valid")
     
     def backup_all_databases(self, auto_backup_only: bool = False):
         """Create backups for all specified databases"""
@@ -276,7 +321,7 @@ class PostgreSQLBackupManager:
             backup_path = self.create_backup(self.database_name)
             if backup_path:
                 self.logger.info(f"Successfully created backup for {self.database_name}")
-                self.cleanup_old_backups()
+                self.cleanup_all_storages()
                 return True
             else:
                 return False
@@ -308,8 +353,8 @@ class PostgreSQLBackupManager:
         
         self.logger.info(f"Successfully created {success_count} out of {len(databases)} backups")
         
-        # Clean up old backups
-        self.cleanup_old_backups()
+        # Clean up old backups for all storages
+        self.cleanup_all_storages()
         
         return success_count > 0
     
@@ -332,8 +377,8 @@ class PostgreSQLBackupManager:
 
 def main():
     """Main function"""
-    parser = argparse.ArgumentParser(description='PostgreSQL Backup Manager v1.0.0')
-    parser.add_argument('--version', '-v', action='version', version='PostgreSQL Backup Manager v1.0.0\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
+    parser = argparse.ArgumentParser(description='PostgreSQL Backup Manager v1.1.0')
+    parser.add_argument('--version', '-v', action='version', version='PostgreSQL Backup Manager v1.1.0\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
     parser.add_argument('--config', '-c', default='config/config.yaml',
                        help='Path to configuration file')
     parser.add_argument('--database', '-d', help='Specific database name for backup')
@@ -344,6 +389,12 @@ def main():
     parser.add_argument('--auto-backup-only', '-a', action='store_true',
                        help='Backup only databases marked for automatic backup')
     parser.add_argument('--database-config', help='Use specific database configuration')
+    parser.add_argument('--cleanup-only', action='store_true',
+                       help='Only perform cleanup without creating new backups')
+    parser.add_argument('--cleanup-storage', choices=['local', 'remote', 'all'], default='all',
+                       help='Which storage to clean up (default: all)')
+    parser.add_argument('--validate-retention', action='store_true',
+                       help='Validate retention configuration and exit')
     
     args = parser.parse_args()
     
@@ -374,6 +425,18 @@ def main():
             else:
                 print("Remote storage connection error")
                 sys.exit(1)
+        
+        if args.validate_retention:
+            manager.validate_retention_config()
+            sys.exit(0)
+        
+        if args.cleanup_only:
+            # Only perform cleanup
+            if args.cleanup_storage == 'all':
+                manager.cleanup_all_storages()
+            else:
+                manager.cleanup_old_backups(args.cleanup_storage)
+            sys.exit(0)
         
         if args.database:
             # Backup specific database

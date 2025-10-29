@@ -35,7 +35,31 @@ backup:
   # Enable compression for backup files
   compress: true
   
-  # Number of days to keep backup files (longer retention for production)
+  # Advanced retention policy for production database
+  retention:
+    # Local storage retention policy (shorter for production due to space constraints)
+    local:
+      # Daily backups: keep for 30 days
+      daily: 30
+      # Weekly backups: keep for 90 days
+      weekly: 90
+      # Monthly backups: keep for 12 months
+      monthly: 365  # 12 months
+      # Delete everything older than 12 months
+      max_age: 365  # 12 months
+    
+    # Remote storage retention policy (longer for production)
+    remote:
+      # Daily backups: keep for 60 days
+      daily: 60
+      # Weekly backups: keep for 6 months
+      weekly: 180  # 6 months
+      # Monthly backups: keep for 3 years
+      monthly: 1095  # 3 years
+      # Delete everything older than 3 years
+      max_age: 1095  # 3 years
+  
+  # Legacy retention setting (for backward compatibility)
   retention_days: 90
   
   # Remote storage configuration

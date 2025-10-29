@@ -35,7 +35,31 @@ backup:
   # Enable compression for backup files
   compress: true
   
-  # Number of days to keep backup files (shorter retention for staging)
+  # Advanced retention policy for staging database (shorter retention)
+  retention:
+    # Local storage retention policy (very short for staging)
+    local:
+      # Daily backups: keep for 7 days
+      daily: 7
+      # Weekly backups: keep for 30 days
+      weekly: 30
+      # Monthly backups: keep for 3 months
+      monthly: 90  # 3 months
+      # Delete everything older than 3 months
+      max_age: 90  # 3 months
+    
+    # Remote storage retention policy (slightly longer for staging)
+    remote:
+      # Daily backups: keep for 14 days
+      daily: 14
+      # Weekly backups: keep for 60 days
+      weekly: 60
+      # Monthly backups: keep for 6 months
+      monthly: 180  # 6 months
+      # Delete everything older than 6 months
+      max_age: 180  # 6 months
+  
+  # Legacy retention setting (for backward compatibility)
   retention_days: 30
   
   # Remote storage configuration

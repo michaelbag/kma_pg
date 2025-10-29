@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Remote Storage Manager
-Version: 1.0.0
+Version: 1.1.0
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -15,7 +15,8 @@ import subprocess
 import tempfile
 import ftplib
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
+from datetime import datetime, timedelta
 import requests
 from webdav3.client import Client
 
@@ -363,3 +364,233 @@ class RemoteStorageManager:
         except Exception as e:
             print(f"FTP connection test failed: {e}")
             return False
+    
+    def cleanup_old_backups(self, retention_days: int) -> Dict[str, int]:
+        """
+        Clean up old backup files from remote storage
+        
+        Args:
+            retention_days: Number of days to keep backups
+        
+        Returns:
+            Dictionary with cleanup statistics
+        """
+        if not self.is_enabled():
+            return {'deleted': 0, 'kept': 0, 'errors': 0}
+        
+        try:
+            if self.storage_type == 'webdav':
+                return self._cleanup_webdav_backups(retention_days)
+            elif self.storage_type == 'cifs':
+                return self._cleanup_cifs_backups(retention_days)
+            elif self.storage_type == 'ftp':
+                return self._cleanup_ftp_backups(retention_days)
+            else:
+                print(f"Cleanup not supported for storage type: {self.storage_type}")
+                return {'deleted': 0, 'kept': 0, 'errors': 0}
+        except Exception as e:
+            print(f"Remote storage cleanup error: {e}")
+            return {'deleted': 0, 'kept': 0, 'errors': 1}
+    
+    def _cleanup_webdav_backups(self, retention_days: int) -> Dict[str, int]:
+        """Clean up old backups from WebDAV server"""
+        webdav_config = self.remote_config.get('webdav', {})
+        
+        if not webdav_config:
+            print("WebDAV configuration not found")
+            return {'deleted': 0, 'kept': 0, 'errors': 1}
+        
+        try:
+            options = {
+                'webdav_hostname': webdav_config.get('url'),
+                'webdav_login': webdav_config.get('username'),
+                'webdav_password': webdav_config.get('password'),
+                'webdav_verify_ssl': webdav_config.get('verify_ssl', True)
+            }
+            
+            client = Client(options)
+            
+            # Get list of files
+            files = client.list()
+            if not files:
+                return {'deleted': 0, 'kept': 0, 'errors': 0}
+            
+            # Filter backup files
+            backup_files = [f for f in files if f.endswith(('.dump', '.sql', '.gz', '.bz2'))]
+            
+            # Calculate cutoff date
+            cutoff_date = datetime.now() - timedelta(days=retention_days)
+            
+            stats = {'deleted': 0, 'kept': 0, 'errors': 0}
+            
+            for file_path in backup_files:
+                try:
+                    # Get file info (this is a simplified approach)
+                    # In a real implementation, you'd need to get file modification time
+                    # WebDAV doesn't always provide this easily
+                    file_name = os.path.basename(file_path)
+                    
+                    # For now, we'll use a simple filename-based approach
+                    # This is a limitation of the current WebDAV implementation
+                    if self._should_delete_file(file_name, retention_days):
+                        client.delete(file_path)
+                        stats['deleted'] += 1
+                        print(f"Deleted remote file: {file_name}")
+                    else:
+                        stats['kept'] += 1
+                        
+                except Exception as e:
+                    print(f"Error processing file {file_path}: {e}")
+                    stats['errors'] += 1
+            
+            return stats
+            
+        except Exception as e:
+            print(f"WebDAV cleanup error: {e}")
+            return {'deleted': 0, 'kept': 0, 'errors': 1}
+    
+    def _cleanup_cifs_backups(self, retention_days: int) -> Dict[str, int]:
+        """Clean up old backups from CIFS/Samba server"""
+        cifs_config = self.remote_config.get('cifs', {})
+        
+        if not cifs_config:
+            print("CIFS configuration not found")
+            return {'deleted': 0, 'kept': 0, 'errors': 1}
+        
+        server = cifs_config.get('server')
+        username = cifs_config.get('username')
+        password = cifs_config.get('password')
+        mount_point = cifs_config.get('mount_point', '/mnt/backup_storage')
+        auto_mount = cifs_config.get('auto_mount', True)
+        
+        try:
+            # Mount CIFS share if auto_mount is enabled
+            if auto_mount:
+                self._mount_cifs_share(server, username, password, mount_point)
+            
+            # Check if mount point is accessible
+            if not os.path.ismount(mount_point):
+                print(f"CIFS share not mounted at {mount_point}")
+                return {'deleted': 0, 'kept': 0, 'errors': 1}
+            
+            # Get backup files
+            backup_files = []
+            for file_path in Path(mount_point).iterdir():
+                if file_path.is_file() and file_path.suffix in ['.dump', '.sql', '.gz', '.bz2']:
+                    backup_files.append(file_path)
+            
+            # Calculate cutoff date
+            cutoff_date = datetime.now() - timedelta(days=retention_days)
+            
+            stats = {'deleted': 0, 'kept': 0, 'errors': 0}
+            
+            for file_path in backup_files:
+                try:
+                    file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+                    if file_time < cutoff_date:
+                        file_path.unlink()
+                        stats['deleted'] += 1
+                        print(f"Deleted remote file: {file_path.name}")
+                    else:
+                        stats['kept'] += 1
+                        
+                except Exception as e:
+                    print(f"Error deleting file {file_path.name}: {e}")
+                    stats['errors'] += 1
+            
+            return stats
+            
+        except Exception as e:
+            print(f"CIFS cleanup error: {e}")
+            return {'deleted': 0, 'kept': 0, 'errors': 1}
+        finally:
+            # Unmount CIFS share if auto_mount is enabled
+            if auto_mount:
+                self._unmount_cifs_share(mount_point)
+    
+    def _cleanup_ftp_backups(self, retention_days: int) -> Dict[str, int]:
+        """Clean up old backups from FTP server"""
+        ftp_config = self.remote_config.get('ftp', {})
+        
+        if not ftp_config:
+            print("FTP configuration not found")
+            return {'deleted': 0, 'kept': 0, 'errors': 1}
+        
+        host = ftp_config.get('host')
+        port = ftp_config.get('port', 21)
+        username = ftp_config.get('username')
+        password = ftp_config.get('password')
+        remote_dir = ftp_config.get('remote_dir', '/')
+        ssl = ftp_config.get('ssl', False)
+        
+        try:
+            # Create FTP connection
+            if ssl:
+                ftp = ftplib.FTP_TLS()
+            else:
+                ftp = ftplib.FTP()
+            
+            # Connect to server
+            ftp.connect(host, port)
+            ftp.login(username, password)
+            
+            # Change to remote directory
+            if remote_dir and remote_dir != '/':
+                try:
+                    ftp.cwd(remote_dir)
+                except ftplib.error_perm:
+                    print(f"Could not access directory {remote_dir}")
+                    return {'deleted': 0, 'kept': 0, 'errors': 1}
+            
+            # Get list of files
+            files = []
+            ftp.retrlines('LIST', files.append)
+            
+            # Parse files and filter backup files
+            backup_files = []
+            for line in files:
+                parts = line.split()
+                if len(parts) >= 9:
+                    filename = ' '.join(parts[8:])
+                    if filename.endswith(('.dump', '.sql', '.gz', '.bz2')):
+                        backup_files.append(filename)
+            
+            # Calculate cutoff date
+            cutoff_date = datetime.now() - timedelta(days=retention_days)
+            
+            stats = {'deleted': 0, 'kept': 0, 'errors': 0}
+            
+            for filename in backup_files:
+                try:
+                    # Get file modification time (simplified approach)
+                    # FTP doesn't always provide reliable modification time
+                    if self._should_delete_file(filename, retention_days):
+                        ftp.delete(filename)
+                        stats['deleted'] += 1
+                        print(f"Deleted remote file: {filename}")
+                    else:
+                        stats['kept'] += 1
+                        
+                except Exception as e:
+                    print(f"Error deleting file {filename}: {e}")
+                    stats['errors'] += 1
+            
+            # Close connection
+            ftp.quit()
+            
+            return stats
+            
+        except Exception as e:
+            print(f"FTP cleanup error: {e}")
+            return {'deleted': 0, 'kept': 0, 'errors': 1}
+    
+    def _should_delete_file(self, filename: str, retention_days: int) -> bool:
+        """
+        Determine if a file should be deleted based on filename and retention policy
+        This is a simplified approach - in a real implementation, you'd want to
+        parse the actual file modification time from the remote storage
+        """
+        # This is a placeholder implementation
+        # In practice, you'd need to implement proper file age detection
+        # based on the specific remote storage type
+        return False  # Conservative approach - don't delete by default

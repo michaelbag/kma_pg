@@ -42,12 +42,16 @@ Script application for automatic backup of PostgreSQL databases.
 - Automatic creation of PostgreSQL database backups
 - Support for various backup formats (custom, plain)
 - Backup compression
-- Automatic cleanup of old backups
+- **Advanced multi-level retention policy for backup cleanup**
+- **Separate retention settings for local and remote storage**
+- **Support for daily, weekly, and monthly backup retention**
 - **Remote storage support (FTP, WebDAV and CIFS/Samba)**
+- **Automatic cleanup of remote storage with separate policies**
 - Flexible configuration via YAML/JSON file
 - Detailed logging
 - Database connection testing
 - Remote storage connection testing
+- **Retention policy validation**
 
 ## Installation
 
@@ -144,6 +148,77 @@ pip install -r requirements.txt
    ```
 
 ## Configuration
+
+### Advanced Retention Policy
+
+The backup manager now supports advanced multi-level retention policies with separate settings for local and remote storage:
+
+#### Retention Policy Structure
+
+```yaml
+backup:
+  retention:
+    # Local storage retention policy
+    local:
+      daily: 20      # Keep daily backups for 20 days
+      weekly: 60     # Keep weekly backups for 60 days
+      monthly: 540   # Keep monthly backups for 18 months
+      max_age: 540   # Delete everything older than 18 months
+    
+    # Remote storage retention policy (can be different)
+    remote:
+      daily: 30      # Keep daily backups for 30 days
+      weekly: 90     # Keep weekly backups for 90 days
+      monthly: 730   # Keep monthly backups for 2 years
+      max_age: 730   # Delete everything older than 2 years
+```
+
+#### Backup Type Classification
+
+The system automatically classifies backups based on:
+- **Daily backups**: Files less than 30 days old
+- **Weekly backups**: Files 30-90 days old
+- **Monthly backups**: Files 90-365 days old
+- **Unknown**: Files older than 365 days (use max_age)
+
+#### Retention Policy Benefits
+
+- **Space optimization**: Different retention periods for different backup types
+- **Flexible storage**: Separate policies for local and remote storage
+- **Cost control**: Shorter retention on expensive local storage
+- **Compliance**: Longer retention on remote storage for audit purposes
+
+#### Example Configurations
+
+**Production Database:**
+```yaml
+retention:
+  local:
+    daily: 30
+    weekly: 90
+    monthly: 365
+    max_age: 365
+  remote:
+    daily: 60
+    weekly: 180
+    monthly: 1095
+    max_age: 1095
+```
+
+**Staging Database:**
+```yaml
+retention:
+  local:
+    daily: 7
+    weekly: 30
+    monthly: 90
+    max_age: 90
+  remote:
+    daily: 14
+    weekly: 60
+    monthly: 180
+    max_age: 180
+```
 
 ### Interactive Configuration Setup
 
@@ -381,6 +456,35 @@ python src/kma_pg_backup.py -c /path/to/config.yaml
 python src/kma_pg_backup.py --auto-backup-only
 # or using short parameter
 python src/kma_pg_backup.py -a
+```
+
+### Advanced Retention Management
+
+#### Cleanup old backups
+```bash
+# Clean up both local and remote storage
+python src/kma_pg_backup.py --cleanup-only
+
+# Clean up only local storage
+python src/kma_pg_backup.py --cleanup-only --cleanup-storage local
+
+# Clean up only remote storage
+python src/kma_pg_backup.py --cleanup-only --cleanup-storage remote
+```
+
+#### Validate retention configuration
+```bash
+# Check retention policy configuration for issues
+python src/kma_pg_backup.py --validate-retention
+```
+
+#### Multi-database configuration
+```bash
+# Use specific database configuration
+python src/kma_pg_backup.py --database-config production
+
+# Backup all databases with specific config
+python src/kma_pg_backup.py --database-config staging --auto-backup-only
 ```
 
 ### Windows Quick Start
