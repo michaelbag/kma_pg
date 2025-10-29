@@ -189,17 +189,29 @@ class RemoteStorageManager:
     def _mount_cifs_share(self, server: str, username: str, password: str, mount_point: str):
         """Mount CIFS share"""
         try:
-            # Create credentials file
-            creds_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-            creds_file.write(f"username={username}\n")
-            creds_file.write(f"password={password}\n")
-            creds_file.close()
+            # Detect OS and use appropriate mount command
+            import platform
+            system = platform.system().lower()
             
-            # Mount command
-            mount_cmd = [
-                'mount', '-t', 'cifs', server, mount_point,
-                '-o', f'credentials={creds_file.name},uid={os.getuid()},gid={os.getgid()}'
-            ]
+            if system == 'darwin':  # macOS
+                # Use mount_smbfs for macOS
+                mount_cmd = [
+                    'mount_smbfs',
+                    f'//{username}:{password}@{server.replace("//", "").replace("/", "/")}',
+                    mount_point
+                ]
+            else:  # Linux
+                # Create credentials file
+                creds_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
+                creds_file.write(f"username={username}\n")
+                creds_file.write(f"password={password}\n")
+                creds_file.close()
+                
+                # Mount command for Linux
+                mount_cmd = [
+                    'mount', '-t', 'cifs', server, mount_point,
+                    '-o', f'credentials={creds_file.name},uid={os.getuid()},gid={os.getgid()}'
+                ]
             
             # Execute mount
             result = subprocess.run(mount_cmd, capture_output=True, text=True)
@@ -212,8 +224,8 @@ class RemoteStorageManager:
             print(f"Error mounting CIFS share: {e}")
             raise
         finally:
-            # Clean up credentials file
-            if 'creds_file' in locals():
+            # Clean up credentials file (Linux only)
+            if system != 'darwin' and 'creds_file' in locals():
                 try:
                     os.unlink(creds_file.name)
                 except:
@@ -287,17 +299,29 @@ class RemoteStorageManager:
             # Create temporary mount point
             temp_mount = tempfile.mkdtemp()
             
-            # Create credentials file
-            creds_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
-            creds_file.write(f"username={username}\n")
-            creds_file.write(f"password={password}\n")
-            creds_file.close()
+            # Detect OS and use appropriate mount command
+            import platform
+            system = platform.system().lower()
             
-            # Test mount
-            mount_cmd = [
-                'mount', '-t', 'cifs', server, temp_mount,
-                '-o', f'credentials={creds_file.name},uid={os.getuid()},gid={os.getgid()}'
-            ]
+            if system == 'darwin':  # macOS
+                # Use mount_smbfs for macOS
+                mount_cmd = [
+                    'mount_smbfs',
+                    f'//{username}:{password}@{server.replace("//", "").replace("/", "/")}',
+                    temp_mount
+                ]
+            else:  # Linux
+                # Create credentials file
+                creds_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
+                creds_file.write(f"username={username}\n")
+                creds_file.write(f"password={password}\n")
+                creds_file.close()
+                
+                # Test mount for Linux
+                mount_cmd = [
+                    'mount', '-t', 'cifs', server, temp_mount,
+                    '-o', f'credentials={creds_file.name},uid={os.getuid()},gid={os.getgid()}'
+                ]
             
             result = subprocess.run(mount_cmd, capture_output=True, text=True)
             success = result.returncode == 0
@@ -308,7 +332,8 @@ class RemoteStorageManager:
             
             # Clean up
             os.rmdir(temp_mount)
-            os.unlink(creds_file.name)
+            if system != 'darwin' and 'creds_file' in locals():
+                os.unlink(creds_file.name)
             
             return success
             
@@ -466,7 +491,11 @@ class RemoteStorageManager:
         try:
             # Mount CIFS share if auto_mount is enabled
             if auto_mount:
-                self._mount_cifs_share(server, username, password, mount_point)
+                # Check if already mounted
+                if not os.path.ismount(mount_point):
+                    self._mount_cifs_share(server, username, password, mount_point)
+                else:
+                    print(f"CIFS share already mounted at {mount_point}")
             
             # Check if mount point is accessible
             if not os.path.ismount(mount_point):

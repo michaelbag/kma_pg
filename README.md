@@ -53,9 +53,86 @@ Script application for automatic backup of PostgreSQL databases.
 - Remote storage connection testing
 - **Retention policy validation**
 
+## System Requirements
+
+### Supported Operating Systems
+
+- **macOS** (10.14+)
+- **Linux** (Ubuntu Server 18.04, 20.04, 22.04+)
+- **Windows** (Windows 10, Windows Server 2016+)
+
+### Prerequisites
+
+#### macOS
+- Python 3.8+ (installed via Homebrew recommended)
+- PostgreSQL client tools: `brew install postgresql`
+- SMB/CIFS support: Built-in `mount_smbfs`
+
+#### Linux (Ubuntu Server)
+- Python 3.8+
+- PostgreSQL client tools: `sudo apt install postgresql-client`
+- CIFS utilities: `sudo apt install cifs-utils`
+- SMB client: `sudo apt install smbclient`
+
+#### Windows
+- Python 3.8+
+- PostgreSQL client tools (installed with PostgreSQL or standalone)
+- SMB/CIFS support: Built-in Windows SMB client
+
 ## Installation
 
 > ⚠️ **Warning:** This software is currently in development and testing phase. Use with caution in production environments. Always test thoroughly before deploying.
+
+### Platform-Specific Installation
+
+#### macOS Installation
+```bash
+# Install PostgreSQL client tools
+brew install postgresql
+
+# Clone and setup project
+git clone <repository-url>
+cd kma_pg_backup_manager
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run initialization
+./init_project.sh
+```
+
+#### Linux (Ubuntu Server) Installation
+```bash
+# Install system dependencies
+sudo apt update
+sudo apt install python3 python3-pip python3-venv postgresql-client cifs-utils smbclient
+
+# Clone and setup project
+git clone <repository-url>
+cd kma_pg_backup_manager
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run initialization
+./init_ubuntu_server.sh
+```
+
+#### Windows Installation
+```cmd
+# Install PostgreSQL client tools (if not already installed)
+# Download from: https://www.postgresql.org/download/windows/
+
+# Clone and setup project
+git clone <repository-url>
+cd kma_pg_backup_manager
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+
+# Run initialization
+init_project_windows.bat
+```
 
 ### Quick Setup
 

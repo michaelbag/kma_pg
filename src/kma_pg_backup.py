@@ -176,6 +176,12 @@ class PostgreSQLBackupManager:
             db_config = db_config_data['database']
             backup_config = db_config_data['backup']
         
+        # Use the actual database name from config, not the config name
+        actual_database_name = db_config['name']
+        
+        # Log the actual database name being used
+        self.logger.info(f"Using database name: {actual_database_name} (from config: {database})")
+        
         # Create backup directory
         output_dir = Path(backup_config['output_dir'])
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -204,7 +210,7 @@ class PostgreSQLBackupManager:
             '-h', db_config['host'],
             '-p', str(db_config['port']),
             '-U', db_config['username'],
-            '-d', database,
+            '-d', actual_database_name,
             '-f', str(backup_path)
         ]
         
