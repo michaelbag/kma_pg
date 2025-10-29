@@ -106,7 +106,11 @@ class RemoteStorageManager:
             
             # Mount CIFS share if auto_mount is enabled
             if auto_mount:
-                self._mount_cifs_share(server, username, password, mount_point)
+                # Check if already mounted
+                if not os.path.ismount(mount_point):
+                    self._mount_cifs_share(server, username, password, mount_point)
+                else:
+                    print(f"CIFS share already mounted at {mount_point}")
             
             # Check if mount point is accessible
             if not os.path.ismount(mount_point):
