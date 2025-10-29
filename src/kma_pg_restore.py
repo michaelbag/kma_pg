@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Restore Manager
-Version: 1.1.0
+Version: 1.1.0/1.0.0
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from kma_pg_version import get_version
 
 
 class PostgreSQLRestoreManager:
@@ -235,7 +236,8 @@ class PostgreSQLRestoreManager:
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description='PostgreSQL Restore Manager v1.0.0')
-    parser.add_argument('--version', '-v', action='version', version='PostgreSQL Restore Manager v1.0.0\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
+    version = get_version('kma_pg_restore.py')
+    parser.add_argument('--version', '-v', action='version', version=f'PostgreSQL Restore Manager v{version}\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
     parser.add_argument('--config', '-c', default='config/config.yaml',
                        help='Path to configuration file')
     parser.add_argument('--backup-file', '-f',

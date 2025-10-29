@@ -52,6 +52,8 @@ Script application for automatic backup of PostgreSQL databases.
 - Database connection testing
 - Remote storage connection testing
 - **Retention policy validation**
+- **Advanced versioning system** - dual-level versioning (project/script)
+- **Interactive configuration builder** - create configs with value suggestions
 
 ## System Requirements
 
@@ -252,6 +254,35 @@ python src/kma_pg_config_builder.py
 6. Preview and save configuration
 
 See [CONFIG_BUILDER.md](CONFIG_BUILDER.md) for detailed documentation.
+
+### Version Management System
+
+The project uses a **dual-level versioning system** with project and script versions:
+
+```bash
+# View all versions
+python src/kma_pg_version.py --list
+
+# Get version for specific script
+python src/kma_pg_version.py --get kma_pg_backup.py
+
+# Increment script version
+python src/kma_pg_version.py --increment kma_pg_backup.py --type patch
+
+# Set specific version
+python src/kma_pg_version.py --set kma_pg_backup.py 1.2.0
+```
+
+**Version Format:** `project_version/script_version` (e.g., `2.0.0/1.0.1`)
+
+**Features:**
+- 🎯 **Automatic project version updates** when script versions change
+- 📊 **Semantic versioning** (major.minor.patch)
+- 🔄 **Incremental versioning** (patch, minor, major)
+- 📋 **Centralized version management** in VERSION file
+- 🛠️ **CLI tools** for version management
+
+See [VERSIONING.md](VERSIONING.md) for detailed documentation.
 
 ### Advanced Retention Policy
 

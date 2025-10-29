@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Backup Manager
-Version: 1.1.0
+Version: 1.1.0/1.0.0
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -24,6 +24,7 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from kma_pg_storage import RemoteStorageManager
 from kma_pg_config_manager import DatabaseConfigManager
 from kma_pg_retention import RetentionManager
+from kma_pg_version import get_version
 
 
 class PostgreSQLBackupManager:
@@ -383,8 +384,9 @@ class PostgreSQLBackupManager:
 
 def main():
     """Main function"""
-    parser = argparse.ArgumentParser(description='PostgreSQL Backup Manager v1.1.0')
-    parser.add_argument('--version', '-v', action='version', version='PostgreSQL Backup Manager v1.1.0\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
+    version = get_version('kma_pg_backup.py')
+    parser = argparse.ArgumentParser(description=f'PostgreSQL Backup Manager v{version}')
+    parser.add_argument('--version', '-v', action='version', version=f'PostgreSQL Backup Manager v{version}\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
     parser.add_argument('--config', '-c', default='config/config.yaml',
                        help='Path to configuration file')
     parser.add_argument('--database', '-d', help='Specific database name for backup')

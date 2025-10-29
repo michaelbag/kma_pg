@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Backup Manager - Interactive Configuration Builder
-Version: 1.1.0
+Version: 1.1.0/1.0.0
 
 Interactive tool for creating database configurations with value suggestions
 from existing configurations.

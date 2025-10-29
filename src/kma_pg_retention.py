@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Advanced Retention Policy Manager
-Version: 1.1.0
+Version: 1.1.0/1.0.0
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
