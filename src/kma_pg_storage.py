@@ -838,8 +838,11 @@ class RemoteStorageManager:
             # List files
             backup_files = []
             for file_path in Path(mount_point).iterdir():
-                if file_path.is_file() and file_path.suffix in ['.dump', '.sql']:
-                    backup_files.append(file_path.name)
+                if file_path.is_file():
+                    # Check for backup file extensions (including compressed)
+                    if (file_path.suffix in ['.dump', '.sql'] or 
+                        file_path.suffixes in [['.dump', '.gz'], ['.sql', '.gz']]):
+                        backup_files.append(file_path.name)
             
             return backup_files
             

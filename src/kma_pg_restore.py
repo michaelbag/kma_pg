@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Restore Manager
-Version: 2.0.0/1.1.0
+Version: 2.0.5/1.1.5
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -379,8 +379,11 @@ class PostgreSQLRestoreManager:
         
         backup_files = []
         for file_path in backup_path.iterdir():
-            if file_path.is_file() and file_path.suffix in ['.dump', '.sql']:
-                backup_files.append(str(file_path))
+            if file_path.is_file():
+                # Check for backup file extensions (including compressed)
+                if (file_path.suffix in ['.dump', '.sql'] or 
+                    file_path.suffixes in [['.dump', '.gz'], ['.sql', '.gz']]):
+                    backup_files.append(str(file_path))
         
         return sorted(backup_files)
     
@@ -391,8 +394,21 @@ class PostgreSQLRestoreManager:
             return None
         
         try:
-            # Create temporary file
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.dump')
+            # Determine file extension from remote filename
+            remote_path = Path(remote_filename)
+            if remote_path.suffixes == ['.sql', '.gz']:
+                suffix = '.sql.gz'
+            elif remote_path.suffixes == ['.dump', '.gz']:
+                suffix = '.dump.gz'
+            elif remote_path.suffix == '.sql':
+                suffix = '.sql'
+            elif remote_path.suffix == '.dump':
+                suffix = '.dump'
+            else:
+                suffix = '.dump'  # Default fallback
+            
+            # Create temporary file with correct extension
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             temp_path = temp_file.name
             temp_file.close()
             
