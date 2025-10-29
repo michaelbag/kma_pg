@@ -3,9 +3,9 @@
 [![Development Status](https://img.shields.io/badge/status-in%20development-orange.svg)](https://github.com/michaelbag/kma_pg)
 [![Testing Status](https://img.shields.io/badge/testing-in%20progress-yellow.svg)](https://github.com/michaelbag/kma_pg)
 [![License](https://img.shields.io/badge/license-GPL%20v3.0-blue.svg)](https://github.com/michaelbag/kma_pg/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/michaelbag/kma_pg)
+[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](https://github.com/michaelbag/kma_pg)
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Author:** Michael BAG  
 **Email:** mk@remark.pro  
 **Telegram:** https://t.me/michaelbag  
@@ -34,6 +34,7 @@ Script application for automatic backup of PostgreSQL databases.
 ### Testing Status:
 - 🧪 **Unit tests:** In progress
 - 🧪 **Integration tests:** In progress  
+- 🚧 **Project status:** In development
 - 🧪 **Production testing:** In progress
 - 🧪 **Cross-platform testing:** Planned
 
@@ -83,7 +84,7 @@ Script application for automatic backup of PostgreSQL databases.
 
 ## Installation
 
-> ⚠️ **Warning:** This software is currently in development and testing phase. Use with caution in production environments. Always test thoroughly before deploying.
+> ⚠️ **Warning:** This software is currently **in development**. Use with caution in production environments. Always test thoroughly before deploying.
 
 ### Platform-Specific Installation
 
@@ -283,6 +284,10 @@ python src/kma_pg_version.py --set kma_pg_backup.py 1.2.0
 - 🛠️ **CLI tools** for version management
 
 See [VERSIONING.md](VERSIONING.md) for detailed documentation.
+
+### Development Status
+
+For detailed information about the current development status, progress, and planned features, see [STATUS.md](STATUS.md).
 
 ### Advanced Retention Policy
 

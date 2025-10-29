@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+> 🚧 **Project Status:** In Development  
+> 📅 **Last Updated:** October 29, 2025
+
+## [2.0.0] - 2025-10-29
+
+### Added
+- **Dual-Level Versioning System**: Project and script version management
+- **Interactive Configuration Builder**: GUI-like configuration creation with value suggestions
+- **Advanced Version Management**: Centralized version control with automatic project updates
+- **Comprehensive Status Documentation**: Detailed development status and progress tracking
+
+### New Features
+- `kma_pg_version.py`: Version management CLI tool
+- `kma_pg_config_builder.py`: Interactive configuration builder
+- `STATUS.md`: Detailed project status and development progress
+- `VERSIONING.md`: Complete versioning system documentation
+- Version display in all CLI tools
+- Automatic project version synchronization
+
+### Changed
+- **Version Format**: Now uses `project_version/script_version` format
+- **All Scripts**: Updated to use new versioning system
+- **Documentation**: Enhanced with versioning and status information
+- **README**: Updated with development status and new features
+
+### Technical Improvements
+- Centralized version storage in JSON format
+- Semantic versioning support (major.minor.patch)
+- CLI tools for version management
+- Integration with all project scripts
+- Developer-friendly version management workflow
+
 ## [1.1.0] - 2025-10-29
 
 ### Added
