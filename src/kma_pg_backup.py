@@ -30,9 +30,16 @@ from kma_pg_version import get_version
 class PostgreSQLBackupManager:
     """PostgreSQL Backup Manager"""
     
-    def __init__(self, config_path: str = None, database_name: str = None):
-        """Initialize manager with configuration"""
-        self.config_manager = DatabaseConfigManager()
+    def __init__(self, config_path: str = None, database_name: str = None, main_config_path: str = None):
+        """Initialize manager with configuration
+        
+        Args:
+            config_path: Legacy single configuration file path (deprecated, use database_name instead)
+            database_name: Database configuration name (from config/databases/)
+            main_config_path: Optional path to main config file (overrides default config/config.yaml)
+        """
+        # Initialize config manager with optional main config path
+        self.config_manager = DatabaseConfigManager(main_config_path=main_config_path)
         
         if database_name:
             # Use specific database configuration
@@ -41,7 +48,7 @@ class PostgreSQLBackupManager:
                 raise ValueError(f"Database configuration not found: {database_name}")
             self.database_name = database_name
         elif config_path:
-            # Use legacy single configuration file
+            # Use legacy single configuration file (deprecated)
             self.config = self._load_legacy_config(config_path)
             self.database_name = None
         else:
@@ -387,9 +394,9 @@ def main():
     version = get_version('kma_pg_backup.py')
     parser = argparse.ArgumentParser(description=f'PostgreSQL Backup Manager v{version}')
     parser.add_argument('--version', '-v', action='version', version=f'PostgreSQL Backup Manager v{version}\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
-    parser.add_argument('--config', '-c', default='config/config.yaml',
-                       help='Path to configuration file')
-    parser.add_argument('--database-config', '-d', help='Use specific database configuration')
+    parser.add_argument('--config', '-c', 
+                       help='Path to global configuration file (default: config/config.yaml). Used with --database-config to override default global config.')
+    parser.add_argument('--database-config', '-d', help='Use specific database configuration (config name from config/databases/)')
     parser.add_argument('--test-connection', '-t', action='store_true',
                        help='Only test database connection')
     parser.add_argument('--test-remote-storage', '-r', action='store_true',
@@ -409,10 +416,30 @@ def main():
         # Determine configuration mode
         if args.database_config:
             # Use specific database configuration by config name
-            manager = PostgreSQLBackupManager(database_name=args.database_config)
+            # If --config is provided, use it as main config path
+            manager = PostgreSQLBackupManager(
+                database_name=args.database_config,
+                main_config_path=args.config if args.config else None
+            )
         elif args.config:
-            # Use legacy configuration file
-            manager = PostgreSQLBackupManager(config_path=args.config)
+            # Use legacy configuration file (deprecated, use --database-config instead)
+            # Check if config file exists and contains database section (legacy format)
+            try:
+                with open(args.config, 'r', encoding='utf-8') as f:
+                    if args.config.endswith(('.yaml', '.yml')):
+                        config_data = yaml.safe_load(f)
+                    else:
+                        config_data = json.load(f)
+                
+                # If it has database section, treat as legacy single-config file
+                if config_data and 'database' in config_data:
+                    manager = PostgreSQLBackupManager(config_path=args.config)
+                else:
+                    # Otherwise treat as main config for multi-database mode
+                    manager = PostgreSQLBackupManager(main_config_path=args.config)
+            except Exception:
+                # Fallback to legacy mode
+                manager = PostgreSQLBackupManager(config_path=args.config)
         else:
             # Use multi-database configuration
             manager = PostgreSQLBackupManager()

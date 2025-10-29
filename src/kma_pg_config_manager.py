@@ -21,11 +21,19 @@ from typing import Dict, List, Any, Optional
 class DatabaseConfigManager:
     """Manager for multiple database configurations"""
     
-    def __init__(self, config_dir: str = "config"):
-        """Initialize configuration manager"""
+    def __init__(self, config_dir: str = "config", main_config_path: str = None):
+        """Initialize configuration manager
+        
+        Args:
+            config_dir: Directory containing configuration files
+            main_config_path: Optional path to main config file (overrides default)
+        """
         self.config_dir = Path(config_dir)
         self.databases_dir = self.config_dir / "databases"
-        self.main_config_path = self.config_dir / "config.yaml"
+        if main_config_path:
+            self.main_config_path = Path(main_config_path)
+        else:
+            self.main_config_path = self.config_dir / "config.yaml"
         
         # Create directories if they don't exist
         self.config_dir.mkdir(exist_ok=True)
