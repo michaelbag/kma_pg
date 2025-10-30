@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Restore Manager
-Version: 2.0.5/1.1.5
+Version: 2.0.5/1.1.6
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -461,14 +461,14 @@ def main():
     parser.add_argument('--version', '-v', action='version', version=f'PostgreSQL Restore Manager v{version}\nAuthor: Michael BAG <mk@remark.pro>\nTelegram: https://t.me/michaelbag')
     parser.add_argument('--config', '-c', 
                        help='Path to global configuration file (default: config/config.yaml). Used with --database-config to override default global config.')
-    parser.add_argument('--database-config', help='Use specific database configuration (config name from config/databases/)')
+    parser.add_argument('--database-config', '-D', help='Use specific database configuration (config name from config/databases/)')
     parser.add_argument('--backup-file', '-f', help='Path to backup file (local or remote filename)')
     parser.add_argument('--database', '-d', help='Database name for restore')
     parser.add_argument('--create-db', '-n', action='store_true', help='Create database before restore')
-    parser.add_argument('--clean-db', action='store_true', help='Clean database before restore (drop and recreate)')
+    parser.add_argument('--clean-db', '-X', action='store_true', help='Clean database before restore (drop and recreate)')
     parser.add_argument('--remote-storage', '-r', action='store_true', help='Restore from remote storage')
     parser.add_argument('--list-backups', '-l', action='store_true', help='Show list of available backups')
-    parser.add_argument('--list-remote', action='store_true', help='Show list of remote backups')
+    parser.add_argument('--list-remote', '-R', action='store_true', help='Show list of remote backups')
     
     args = parser.parse_args()
     

@@ -686,11 +686,37 @@ python src/kma_pg_restore.py --backup-file backup_file.dump --database target_da
 python src/kma_pg_restore.py -f backup_file.dump -d target_database -n
 ```
 
+### Restore backup into a different database (with config)
+```bash
+# Local backup file, restore into a different DB name using a named config
+source venv/bin/activate
+python src/kma_pg_restore.py \
+  --database-config production \
+  --backup-file backups/your_backup.dump.gz \
+  --database new_db_name \
+  --create-db \
+  --clean-db
+
+# From remote storage (WebDAV/CIFS/FTP) by remote filename
+python src/kma_pg_restore.py \
+  --database-config production \
+  --remote-storage \
+  --backup-file your_backup.dump.gz \
+  --database new_db_name \
+  --create-db \
+  --clean-db
+```
+
 ### List available backups
 ```bash
 python src/kma_pg_restore.py --list-backups
 # or using short parameter
 python src/kma_pg_restore.py -l
+```
+
+```bash
+# List remote backups available in configured remote storage
+python src/kma_pg_restore.py --database-config production --list-remote
 ```
 
 ## Remote Storage
