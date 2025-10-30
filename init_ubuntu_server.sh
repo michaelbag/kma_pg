@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostgreSQL Backup Manager - Ubuntu Server Setup Script
-# Version: 1.0.2
+# Version: 1.0.3
 # Author: Michael BAG <mk@remark.pro>
 # Supported: Ubuntu Server 18.04, 20.04, 22.04
 
@@ -10,10 +10,21 @@ set -e  # Exit on any error
 SELECTED_USER=""
 # Project directory (where script is being run)
 PROJECT_DIR="$(pwd)"
+# Preferred Python binary (will prefer python3.8 on Ubuntu 18.04 if available)
+PYTHON_BIN="python3"
+
+# Helper: run a command as selected user with proper HOME (-H) and login shell (-l)
+run_as_selected() {
+    if [ -n "$SELECTED_USER" ]; then
+        sudo -H -u "$SELECTED_USER" bash -lc "$*"
+    else
+        bash -lc "$*"
+    fi
+}
 
 echo "========================================"
 echo "PostgreSQL Backup Manager - Ubuntu Server"
-echo "Version: 1.0.2"
+echo "Version: 1.0.3"
 echo "Author: Michael BAG <mk@remark.pro>"
 echo "Supported: Ubuntu Server 18.04, 20.04, 22.04"
 echo "========================================"
@@ -105,6 +116,15 @@ install_system_deps() {
             python3.8 \
             python3.8-venv \
             python3.8-dev
+    fi
+    
+    # Prefer newer Python if available (e.g., python3.8 on 18.04)
+    if command -v python3.8 >/dev/null 2>&1; then
+        PYTHON_BIN="python3.8"
+        echo "✓ Using Python interpreter: $PYTHON_BIN"
+    else
+        PYTHON_BIN="python3"
+        echo "✓ Using Python interpreter: $PYTHON_BIN"
     fi
     
     echo "✓ System dependencies installed"
@@ -200,10 +220,10 @@ create_venv() {
     
     if [ -d "venv" ]; then
         echo "Virtual environment already exists, removing old one..."
-        rm -rf venv
+        run_as_selected "rm -rf venv" || rm -rf venv
     fi
     
-    python3 -m venv venv
+    run_as_selected "$PYTHON_BIN -m venv venv"
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to create virtual environment"
         exit 1
@@ -215,7 +235,7 @@ create_venv() {
 activate_venv() {
     echo ""
     echo "[5/7] Activating virtual environment..."
-    source venv/bin/activate
+    # Activation is performed inside run_as_selected calls for each step
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to activate virtual environment"
         exit 1
@@ -228,16 +248,16 @@ install_deps() {
     echo ""
     echo "[6/7] Installing Python dependencies..."
     
-    # Upgrade pip
-    python -m pip install --upgrade pip
+    # Upgrade pip in venv under selected user
+    run_as_selected "source venv/bin/activate && python -m pip install --upgrade pip"
     if [ $? -ne 0 ]; then
         echo "WARNING: Failed to upgrade pip, continuing..."
     else
         echo "✓ Pip upgraded"
     fi
     
-    # Install requirements
-    pip install -r requirements.txt
+    # Install requirements under selected user to avoid wrong HOME/cache ownership
+    run_as_selected "source venv/bin/activate && pip install -r requirements.txt"
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to install dependencies"
         echo "Please check requirements.txt and try again"
