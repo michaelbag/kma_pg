@@ -261,7 +261,6 @@ class PostgreSQLRestoreManager:
                 return True
             else:
                 # Check if errors are only about extensions (adminpack, etc.)
-                error_output = result.stderr.lower()
                 extension_errors = [
                     'must be owner of extension',
                     'extension adminpack',
