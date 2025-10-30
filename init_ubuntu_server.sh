@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostgreSQL Backup Manager - Ubuntu Server Setup Script
-# Version: 1.0.1
+# Version: 1.0.2
 # Author: Michael BAG <mk@remark.pro>
 # Supported: Ubuntu Server 18.04, 20.04, 22.04
 
@@ -8,10 +8,12 @@ set -e  # Exit on any error
 
 # Selected project user (will be set during setup)
 SELECTED_USER=""
+# Project directory (where script is being run)
+PROJECT_DIR="$(pwd)"
 
 echo "========================================"
 echo "PostgreSQL Backup Manager - Ubuntu Server"
-echo "Version: 1.0.1"
+echo "Version: 1.0.2"
 echo "Author: Michael BAG <mk@remark.pro>"
 echo "Supported: Ubuntu Server 18.04, 20.04, 22.04"
 echo "========================================"
@@ -88,10 +90,13 @@ install_system_deps() {
         libxslt1-dev \
         zlib1g-dev
     
-    # Install PostgreSQL client
-    sudo apt install -y \
-        postgresql-client \
-        libpq-dev
+    # PostgreSQL client utilities: install ONLY if missing (respect pinned versions)
+    if ! command -v psql >/dev/null 2>&1 || ! command -v pg_dump >/dev/null 2>&1; then
+        echo "Installing PostgreSQL client utilities (psql/pg_dump)..."
+        sudo apt install -y postgresql-client || echo "WARNING: Could not install postgresql-client; please ensure psql/pg_dump are available in PATH"
+    else
+        echo "✓ PostgreSQL client utilities already present"
+    fi
     
     # For Ubuntu 18.04, install additional packages
     if [[ "$UBUNTU_VERSION" == "18.04" ]]; then
@@ -164,6 +169,28 @@ create_project_user() {
         echo "Using current user '$SELECTED_USER' for backup operations"
     fi
     echo "Selected project user: $SELECTED_USER"
+}
+
+# Ensure selected user owns the project files
+ensure_project_ownership() {
+    echo ""
+    echo "[Ownership] Applying ownership to project files for user '$SELECTED_USER'..."
+    if [ -z "$SELECTED_USER" ]; then
+        echo "No selected user defined; skipping ownership change"
+        return
+    fi
+    if [ ! -d "$PROJECT_DIR" ]; then
+        echo "WARNING: Project directory not found: $PROJECT_DIR"
+        return
+    fi
+    read -p "Change ownership of all project files in '$PROJECT_DIR' to '$SELECTED_USER'? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        sudo chown -R "$SELECTED_USER":"$SELECTED_USER" "$PROJECT_DIR"
+        echo "✓ Ownership applied to $PROJECT_DIR"
+    else
+        echo "Skipping ownership change"
+    fi
 }
 
 # Create virtual environment
@@ -314,8 +341,8 @@ main() {
     check_root
     update_system
     install_system_deps
-    install_postgresql_server
     create_project_user
+    ensure_project_ownership
     create_venv
     activate_venv
     install_deps
