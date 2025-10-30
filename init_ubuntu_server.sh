@@ -6,6 +6,9 @@
 
 set -e  # Exit on any error
 
+# Selected project user (will be set during setup)
+SELECTED_USER=""
+
 echo "========================================"
 echo "PostgreSQL Backup Manager - Ubuntu Server"
 echo "Version: 1.0.0"
@@ -102,73 +105,71 @@ install_system_deps() {
     echo "✓ System dependencies installed"
 }
 
-# Install PostgreSQL server (optional)
-install_postgresql_server() {
-    echo ""
-    echo "[3/8] PostgreSQL server installation..."
-    
-    read -p "Install PostgreSQL server locally? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installing PostgreSQL server..."
-        
-        # Install PostgreSQL server
-        sudo apt install -y postgresql postgresql-contrib
-        
-        # Start and enable PostgreSQL
-        sudo systemctl start postgresql
-        sudo systemctl enable postgresql
-        
-        # Set up PostgreSQL user
-        echo "Setting up PostgreSQL..."
-        sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
-        
-        echo "✓ PostgreSQL server installed and configured"
-        echo "  Default user: postgres"
-        echo "  Default password: postgres"
-        echo "  Default port: 5432"
-    else
-        echo "Skipping PostgreSQL server installation"
-    fi
-}
+# PostgreSQL server installation removed (client-only setup)
 
 # Create project user (optional)
 create_project_user() {
     echo ""
-    echo "[4/8] Project user setup..."
+    echo "[3/7] Project user setup..."
     
     read -p "Create dedicated user for backup operations? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        read -p "Enter username for backup operations [backup]: " username
-        username=${username:-backup}
-        
-        # Create user
-        sudo useradd -m -s /bin/bash $username
-        
-        # Add user to necessary groups
-        sudo usermod -aG sudo $username
-        
-        # Set up SSH key (if exists)
-        if [ -f ~/.ssh/id_rsa.pub ]; then
-            sudo mkdir -p /home/$username/.ssh
-            sudo cp ~/.ssh/id_rsa.pub /home/$username/.ssh/authorized_keys
-            sudo chown -R $username:$username /home/$username/.ssh
-            sudo chmod 700 /home/$username/.ssh
-            sudo chmod 600 /home/$username/.ssh/authorized_keys
-        fi
-        
-        echo "✓ User '$username' created"
-        echo "  Switch to this user: sudo su - $username"
+        while true; do
+            read -p "Enter username for backup operations [backup]: " username
+            username=${username:-backup}
+            
+            if id -u "$username" >/dev/null 2>&1; then
+                read -p "User '$username' already exists. Use this user? (Y/n): " -n 1 -r use_existing
+                echo
+                if [[ ! $use_existing =~ ^[Nn]$ ]]; then
+                    SELECTED_USER="$username"
+                    echo "Using existing user '$SELECTED_USER'"
+                    break
+                else
+                    read -p "Create a different user instead? (y/N): " -n 1 -r try_another
+                    echo
+                    if [[ $try_another =~ ^[Yy]$ ]]; then
+                        continue
+                    else
+                        SELECTED_USER="$USER"
+                        echo "Skipping user creation. Using current user '$SELECTED_USER' for backup operations"
+                        return
+                    fi
+                fi
+            else
+                # Create user
+                sudo useradd -m -s /bin/bash "$username"
+                
+                # Add user to necessary groups
+                sudo usermod -aG sudo "$username"
+                
+                # Set up SSH key (if exists)
+                if [ -f ~/.ssh/id_rsa.pub ]; then
+                    sudo mkdir -p /home/$username/.ssh
+                    sudo cp ~/.ssh/id_rsa.pub /home/$username/.ssh/authorized_keys
+                    sudo chown -R $username:$username /home/$username/.ssh
+                    sudo chmod 700 /home/$username/.ssh
+                    sudo chmod 600 /home/$username/.ssh/authorized_keys
+                fi
+                
+                SELECTED_USER="$username"
+                echo "✓ User '$SELECTED_USER' created"
+                echo "  Switch to this user: sudo su - $SELECTED_USER"
+                break
+            fi
+        done
     else
-        echo "Using current user for backup operations"
+        SELECTED_USER="$USER"
+        echo "Using current user '$SELECTED_USER' for backup operations"
     fi
+    echo "Selected project user: $SELECTED_USER"
 }
 
 # Create virtual environment
 create_venv() {
     echo ""
-    echo "[5/8] Creating Python virtual environment..."
+    echo "[4/7] Creating Python virtual environment..."
     
     if [ -d "venv" ]; then
         echo "Virtual environment already exists, removing old one..."
@@ -186,7 +187,7 @@ create_venv() {
 # Activate virtual environment
 activate_venv() {
     echo ""
-    echo "[6/8] Activating virtual environment..."
+    echo "[5/7] Activating virtual environment..."
     source venv/bin/activate
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to activate virtual environment"
@@ -198,7 +199,7 @@ activate_venv() {
 # Install Python dependencies
 install_deps() {
     echo ""
-    echo "[7/8] Installing Python dependencies..."
+    echo "[6/7] Installing Python dependencies..."
     
     # Upgrade pip
     python -m pip install --upgrade pip
@@ -221,10 +222,14 @@ install_deps() {
 # Set up project and test
 setup_project() {
     echo ""
-    echo "[8/8] Setting up project and testing..."
+    echo "[7/7] Setting up project and testing..."
     
     # Create project directories
     mkdir -p logs backups config/databases
+    # Ensure ownership by selected user (if set)
+    if [ -n "$SELECTED_USER" ]; then
+        sudo chown -R "$SELECTED_USER":"$SELECTED_USER" logs backups config || true
+    fi
     echo "✓ Project directories created"
     
     # Make scripts executable
@@ -237,7 +242,11 @@ setup_project() {
     
     # Test installation
     echo "Testing installation..."
-    python -c "import psycopg2, yaml, requests; print('✓ All dependencies imported successfully')" 2>/dev/null
+    if [ -n "$SELECTED_USER" ]; then
+        sudo -u "$SELECTED_USER" bash -lc "python -c 'import psycopg2, yaml, requests; print(\"✓ All dependencies imported successfully\")'" 2>/dev/null || true
+    else
+        python -c "import psycopg2, yaml, requests; print('✓ All dependencies imported successfully')" 2>/dev/null || true
+    fi
     if [ $? -ne 0 ]; then
         echo "WARNING: Some dependencies may not be working correctly"
         echo "Please check the installation"
@@ -247,7 +256,11 @@ setup_project() {
     
     # Test scripts
     echo "Testing backup script..."
-    python src/kma_pg_backup.py --version >/dev/null 2>&1
+    if [ -n "$SELECTED_USER" ]; then
+        sudo -u "$SELECTED_USER" bash -lc "source venv/bin/activate && python src/kma_pg_backup.py --version" >/dev/null 2>&1
+    else
+        python src/kma_pg_backup.py --version >/dev/null 2>&1
+    fi
     if [ $? -ne 0 ]; then
         echo "WARNING: Backup script test failed"
     else
@@ -255,7 +268,11 @@ setup_project() {
     fi
     
     echo "Testing restore script..."
-    python src/kma_pg_restore.py --version >/dev/null 2>&1
+    if [ -n "$SELECTED_USER" ]; then
+        sudo -u "$SELECTED_USER" bash -lc "source venv/bin/activate && python src/kma_pg_restore.py --version" >/dev/null 2>&1
+    else
+        python src/kma_pg_restore.py --version >/dev/null 2>&1
+    fi
     if [ $? -ne 0 ]; then
         echo "WARNING: Restore script test failed"
     else
@@ -277,8 +294,12 @@ setup_cron() {
         # Create cron job
         CRON_JOB="0 2 * * * cd $CURRENT_DIR && source venv/bin/activate && python src/kma_pg_backup.py >> logs/cron.log 2>&1"
         
-        # Add to crontab
-        (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+        # Add to crontab for selected user
+        if [ -n "$SELECTED_USER" ] && [ "$SELECTED_USER" != "$USER" ]; then
+            (sudo -u "$SELECTED_USER" crontab -l 2>/dev/null; echo "$CRON_JOB") | sudo -u "$SELECTED_USER" crontab -
+        else
+            (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+        fi
         
         echo "✓ Automated backup scheduled for 2:00 AM daily"
         echo "  Logs will be written to: logs/cron.log"
