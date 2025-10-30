@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostgreSQL Backup Manager - Ubuntu Server Setup Script
-# Version: 1.0.0
+# Version: 1.0.1
 # Author: Michael BAG <mk@remark.pro>
 # Supported: Ubuntu Server 18.04, 20.04, 22.04
 
@@ -11,7 +11,7 @@ SELECTED_USER=""
 
 echo "========================================"
 echo "PostgreSQL Backup Manager - Ubuntu Server"
-echo "Version: 1.0.0"
+echo "Version: 1.0.1"
 echo "Author: Michael BAG <mk@remark.pro>"
 echo "Supported: Ubuntu Server 18.04, 20.04, 22.04"
 echo "========================================"
