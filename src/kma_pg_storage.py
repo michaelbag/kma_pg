@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Remote Storage Manager
-Version: 1.1.0/1.0.0
+Version: 2.0.5/1.0.1
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -14,11 +14,67 @@ import shutil
 import subprocess
 import tempfile
 import ftplib
+import re
 from pathlib import Path
 from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 import requests
 from webdav3.client import Client
+
+
+def mask_password(text: str) -> str:
+    """
+    Mask passwords in text strings to prevent logging sensitive information.
+    
+    Args:
+        text: Text string that may contain passwords
+        
+    Returns:
+        Text with passwords masked
+    """
+    if not text:
+        return text
+    
+    # Mask password=value patterns (case insensitive)
+    text = re.sub(
+        r'(password\s*[=:]\s*)([^\s\'"&,}]+)',
+        r'\1****',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask PGPASSWORD=value patterns
+    text = re.sub(
+        r'(PGPASSWORD\s*=\s*)([^\s\'"]+)',
+        r'\1****',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask password in URLs like //username:password@server
+    text = re.sub(
+        r'(://[^:]+:)([^@]+)(@)',
+        r'\1****\3',
+        text
+    )
+    
+    # Mask passwords in connection strings like "password='...'"
+    text = re.sub(
+        r"(password\s*[=:]\s*['\"])([^'\"]+)(['\"])",
+        r'\1****\3',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask passwords in dictionary/JSON representations
+    text = re.sub(
+        r"(['\"]password['\"]\s*:\s*['\"])([^'\"]+)(['\"])",
+        r'\1****\3',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    return text
 
 
 class RemoteStorageManager:
@@ -30,6 +86,8 @@ class RemoteStorageManager:
         self.remote_config = config.get('backup', {}).get('remote_storage', {})
         self.enabled = self.remote_config.get('enabled', False)
         self.storage_type = self.remote_config.get('type', 'webdav')
+        # Track mounted mount points for cleanup
+        self._mounted_points = set()
         
     def is_enabled(self) -> bool:
         """Check if remote storage is enabled"""
@@ -50,7 +108,8 @@ class RemoteStorageManager:
             else:
                 raise ValueError(f"Unsupported storage type: {self.storage_type}")
         except Exception as e:
-            print(f"Remote storage upload error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"Remote storage upload error: {error_msg}")
             return False
     
     def _upload_to_webdav(self, local_file_path: str, remote_filename: str) -> bool:
@@ -81,7 +140,8 @@ class RemoteStorageManager:
             return True
             
         except Exception as e:
-            print(f"WebDAV upload error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"WebDAV upload error: {error_msg}")
             return False
     
     def _upload_to_cifs(self, local_file_path: str, remote_filename: str) -> bool:
@@ -130,6 +190,9 @@ class RemoteStorageManager:
                     
                     # Try to mount
                     self._mount_cifs_share(server, username, password, mount_point)
+                    # Track mounted point
+                    if os.path.ismount(mount_point):
+                        self._mounted_points.add(mount_point)
             
             # Check if mount point is accessible
             if not os.path.ismount(mount_point):
@@ -143,8 +206,13 @@ class RemoteStorageManager:
             return True
             
         except Exception as e:
-            print(f"CIFS upload error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"CIFS upload error: {error_msg}")
             return False
+        finally:
+            # Unmount CIFS share if auto_mount is enabled
+            if auto_mount:
+                self._unmount_cifs_share(mount_point)
     
     def _upload_to_ftp(self, local_file_path: str, remote_filename: str) -> bool:
         """Upload file to FTP server"""
@@ -202,12 +270,9 @@ class RemoteStorageManager:
             return True
             
         except Exception as e:
-            print(f"FTP upload error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"FTP upload error: {error_msg}")
             return False
-        finally:
-            # Unmount CIFS share if auto_mount is enabled
-            if auto_mount:
-                self._unmount_cifs_share(mount_point)
     
     def _mount_cifs_share(self, server: str, username: str, password: str, mount_point: str):
         """Mount CIFS share"""
@@ -287,7 +352,8 @@ class RemoteStorageManager:
             print(f"CIFS share mounted at {mount_point}")
             
         except Exception as e:
-            print(f"Error mounting CIFS share: {e}")
+            error_msg = mask_password(str(e))
+            print(f"Error mounting CIFS share: {error_msg}")
             raise
         finally:
             # Clean up credentials file (Linux only)
@@ -301,10 +367,59 @@ class RemoteStorageManager:
         """Unmount CIFS share"""
         try:
             if os.path.ismount(mount_point):
-                subprocess.run(['umount', mount_point], check=True)
+                # Detect OS and use appropriate unmount command
+                import platform
+                system = platform.system().lower()
+                
+                if system == 'darwin':  # macOS
+                    # On macOS, use diskutil for SMB/CIFS shares
+                    result = subprocess.run(['diskutil', 'unmount', mount_point], 
+                                          capture_output=True, text=True, timeout=10)
+                    if result.returncode != 0:
+                        # Fallback to umount if diskutil fails
+                        subprocess.run(['umount', mount_point], check=True, timeout=10)
+                else:  # Linux
+                    subprocess.run(['umount', mount_point], check=True, timeout=10)
+                
                 print(f"CIFS share unmounted from {mount_point}")
+                # Remove from tracking
+                self._mounted_points.discard(mount_point)
+        except subprocess.TimeoutExpired:
+            print(f"Warning: Timeout while unmounting {mount_point}")
         except Exception as e:
-            print(f"Error unmounting CIFS share: {e}")
+            error_msg = mask_password(str(e))
+            print(f"Error unmounting CIFS share: {error_msg}")
+    
+    def cleanup_all_mounts(self):
+        """Unmount all tracked mount points"""
+        unmounted_count = 0
+        import platform
+        system = platform.system().lower()
+        
+        for mount_point in list(self._mounted_points):
+            try:
+                if os.path.ismount(mount_point):
+                    if system == 'darwin':  # macOS
+                        # On macOS, use diskutil for SMB/CIFS shares
+                        result = subprocess.run(['diskutil', 'unmount', mount_point], 
+                                              capture_output=True, text=True, timeout=10)
+                        if result.returncode != 0:
+                            # Fallback to umount if diskutil fails
+                            subprocess.run(['umount', mount_point], check=True, timeout=10)
+                    else:  # Linux
+                        subprocess.run(['umount', mount_point], check=True, timeout=10)
+                    
+                    print(f"CIFS share unmounted from {mount_point}")
+                    unmounted_count += 1
+                self._mounted_points.discard(mount_point)
+            except subprocess.TimeoutExpired:
+                print(f"Warning: Timeout while unmounting {mount_point}")
+            except Exception as e:
+                error_msg = mask_password(str(e))
+                print(f"Error unmounting {mount_point}: {error_msg}")
+        
+        if unmounted_count > 0:
+            print(f"Cleaned up {unmounted_count} mounted resource(s)")
     
     def test_connection(self) -> bool:
         """Test connection to remote storage"""
@@ -480,7 +595,8 @@ class RemoteStorageManager:
                 print(f"Cleanup not supported for storage type: {self.storage_type}")
                 return {'deleted': 0, 'kept': 0, 'errors': 0}
         except Exception as e:
-            print(f"Remote storage cleanup error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"Remote storage cleanup error: {error_msg}")
             return {'deleted': 0, 'kept': 0, 'errors': 1}
     
     def _cleanup_webdav_backups(self, retention_days: int) -> Dict[str, int]:
@@ -537,7 +653,8 @@ class RemoteStorageManager:
             return stats
             
         except Exception as e:
-            print(f"WebDAV cleanup error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"WebDAV cleanup error: {error_msg}")
             return {'deleted': 0, 'kept': 0, 'errors': 1}
     
     def _cleanup_cifs_backups(self, retention_days: int) -> Dict[str, int]:
@@ -560,8 +677,13 @@ class RemoteStorageManager:
                 # Check if already mounted
                 if not os.path.ismount(mount_point):
                     self._mount_cifs_share(server, username, password, mount_point)
+                    # Track mounted point
+                    if os.path.ismount(mount_point):
+                        self._mounted_points.add(mount_point)
                 else:
                     print(f"CIFS share already mounted at {mount_point}")
+                    # Track existing mount point
+                    self._mounted_points.add(mount_point)
             
             # Check if mount point is accessible
             if not os.path.ismount(mount_point):
@@ -596,7 +718,8 @@ class RemoteStorageManager:
             return stats
             
         except Exception as e:
-            print(f"CIFS cleanup error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"CIFS cleanup error: {error_msg}")
             return {'deleted': 0, 'kept': 0, 'errors': 1}
         finally:
             # Unmount CIFS share if auto_mount is enabled
@@ -676,7 +799,8 @@ class RemoteStorageManager:
             return stats
             
         except Exception as e:
-            print(f"FTP cleanup error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"FTP cleanup error: {error_msg}")
             return {'deleted': 0, 'kept': 0, 'errors': 1}
     
     def _should_delete_file(self, filename: str, retention_days: int) -> bool:
@@ -705,7 +829,8 @@ class RemoteStorageManager:
             else:
                 raise ValueError(f"Unsupported storage type: {self.storage_type}")
         except Exception as e:
-            print(f"Remote storage download error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"Remote storage download error: {error_msg}")
             return False
     
     def _download_from_webdav(self, remote_filename: str, local_path: str) -> bool:
@@ -732,7 +857,8 @@ class RemoteStorageManager:
             return True
             
         except Exception as e:
-            print(f"WebDAV download error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"WebDAV download error: {error_msg}")
             return False
     
     def _download_from_cifs(self, remote_filename: str, local_path: str) -> bool:
@@ -760,8 +886,13 @@ class RemoteStorageManager:
                 # Check if already mounted
                 if not os.path.ismount(mount_point):
                     self._mount_cifs_share(server, username, password, mount_point)
+                    # Track mounted point
+                    if os.path.ismount(mount_point):
+                        self._mounted_points.add(mount_point)
                 else:
                     print(f"CIFS share already mounted at {mount_point}")
+                    # Track existing mount point
+                    self._mounted_points.add(mount_point)
             
             # Check if mount point is accessible
             if not os.path.ismount(mount_point):
@@ -777,7 +908,8 @@ class RemoteStorageManager:
                 return False
                 
         except Exception as e:
-            print(f"CIFS download error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"CIFS download error: {error_msg}")
             return False
         finally:
             # Unmount CIFS share if auto_mount is enabled
@@ -816,7 +948,8 @@ class RemoteStorageManager:
             return True
             
         except Exception as e:
-            print(f"FTP download error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"FTP download error: {error_msg}")
             return False
     
     def list_backups(self) -> List[str]:
@@ -834,7 +967,8 @@ class RemoteStorageManager:
             else:
                 raise ValueError(f"Unsupported storage type: {self.storage_type}")
         except Exception as e:
-            print(f"Remote storage list error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"Remote storage list error: {error_msg}")
             return []
     
     def _list_webdav_backups(self) -> List[str]:
@@ -862,7 +996,8 @@ class RemoteStorageManager:
             return backup_files
             
         except Exception as e:
-            print(f"WebDAV list error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"WebDAV list error: {error_msg}")
             return []
     
     def _list_cifs_backups(self) -> List[str]:
@@ -890,8 +1025,13 @@ class RemoteStorageManager:
                 # Check if already mounted
                 if not os.path.ismount(mount_point):
                     self._mount_cifs_share(server, username, password, mount_point)
+                    # Track mounted point
+                    if os.path.ismount(mount_point):
+                        self._mounted_points.add(mount_point)
                 else:
                     print(f"CIFS share already mounted at {mount_point}")
+                    # Track existing mount point
+                    self._mounted_points.add(mount_point)
             
             # Check if mount point is accessible
             if not os.path.ismount(mount_point):
@@ -909,7 +1049,8 @@ class RemoteStorageManager:
             return backup_files
             
         except Exception as e:
-            print(f"CIFS list error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"CIFS list error: {error_msg}")
             return []
         finally:
             # Unmount CIFS share if auto_mount is enabled
@@ -948,5 +1089,61 @@ class RemoteStorageManager:
             return backup_files
             
         except Exception as e:
-            print(f"FTP list error: {e}")
+            error_msg = mask_password(str(e))
+            print(f"FTP list error: {error_msg}")
             return []
+
+
+if __name__ == "__main__":
+    """Test remote storage connection"""
+    import argparse
+    import sys
+    
+    parser = argparse.ArgumentParser(description='Remote Storage Manager - Test connection')
+    parser.add_argument('--test', '-t', action='store_true',
+                       help='Test remote storage connection')
+    parser.add_argument('--config', '-c', 
+                       help='Path to configuration file (default: config/config.yaml)')
+    
+    args = parser.parse_args()
+    
+    try:
+        import yaml
+        import json
+        from pathlib import Path
+        
+        # Load configuration
+        config_path = args.config or 'config/config.yaml'
+        if not Path(config_path).exists():
+            print(f"Error: Configuration file not found: {config_path}")
+            print("Please specify a valid config file with --config")
+            sys.exit(1)
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            if config_path.endswith(('.yaml', '.yml')):
+                config = yaml.safe_load(f)
+            else:
+                config = json.load(f)
+        
+        # Initialize storage manager
+        storage = RemoteStorageManager(config)
+        
+        if args.test or len(sys.argv) == 1:
+            print("Testing remote storage connection...")
+            if storage.test_connection():
+                print("✓ Remote storage connection successful")
+                sys.exit(0)
+            else:
+                print("✗ Remote storage connection failed")
+                sys.exit(1)
+        else:
+            parser.print_help()
+            sys.exit(0)
+            
+    except ImportError as e:
+        print(f"Error: Missing required module: {e}")
+        print("Please install dependencies: pip install -r requirements.txt")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Backup Manager
-Version: 1.1.0/1.0.0
+Version: 2.0.5/1.0.3
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -16,6 +16,7 @@ import yaml
 import logging
 import subprocess
 import argparse
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -25,6 +26,61 @@ from kma_pg_storage import RemoteStorageManager
 from kma_pg_config_manager import DatabaseConfigManager
 from kma_pg_retention import RetentionManager
 from kma_pg_version import get_version
+
+
+def mask_password(text: str) -> str:
+    """
+    Mask passwords in text strings to prevent logging sensitive information.
+    
+    Args:
+        text: Text string that may contain passwords
+        
+    Returns:
+        Text with passwords masked
+    """
+    if not text:
+        return text
+    
+    # Mask password=value patterns (case insensitive)
+    text = re.sub(
+        r'(password\s*[=:]\s*)([^\s\'"&,}]+)',
+        r'\1****',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask PGPASSWORD=value patterns
+    text = re.sub(
+        r'(PGPASSWORD\s*=\s*)([^\s\'"]+)',
+        r'\1****',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask password in URLs like //username:password@server
+    text = re.sub(
+        r'(://[^:]+:)([^@]+)(@)',
+        r'\1****\3',
+        text
+    )
+    
+    # Mask passwords in connection strings like "password='...'"
+    text = re.sub(
+        r"(password\s*[=:]\s*['\"])([^'\"]+)(['\"])",
+        r'\1****\3',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask passwords in dictionary/JSON representations
+    text = re.sub(
+        r"(['\"]password['\"]\s*:\s*['\"])([^'\"]+)(['\"])",
+        r'\1****\3',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    return text
 
 
 class PostgreSQLBackupManager:
@@ -147,7 +203,8 @@ class PostgreSQLBackupManager:
             self.logger.info("Database connection successful")
             return True
         except Exception as e:
-            self.logger.error(f"Database connection error: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Database connection error: {error_msg}")
             return False
     
     def test_remote_storage(self) -> bool:
@@ -279,9 +336,19 @@ class PostgreSQLBackupManager:
                 return None
                 
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Backup creation error: {e}")
-            self.logger.error(f"Error output: {e.stderr}")
+            error_msg = mask_password(str(e))
+            stderr_msg = mask_password(e.stderr) if e.stderr else ""
+            self.logger.error(f"Backup creation error: {error_msg}")
+            if stderr_msg:
+                self.logger.error(f"Error output: {stderr_msg}")
             return None
+        finally:
+            # Ensure all mounted resources are unmounted
+            try:
+                self.remote_storage.cleanup_all_mounts()
+            except Exception as e:
+                error_msg = mask_password(str(e))
+                self.logger.warning(f"Error during mount cleanup: {error_msg}")
     
     def cleanup_old_backups(self, storage_type: str = 'local'):
         """
@@ -317,6 +384,13 @@ class PostgreSQLBackupManager:
                                f"kept={stats['kept']}, errors={stats['errors']}")
             else:
                 self.logger.info("No files deleted from remote storage")
+            
+            # Ensure all mounted resources are unmounted after remote cleanup
+            try:
+                self.remote_storage.cleanup_all_mounts()
+            except Exception as e:
+                error_msg = mask_password(str(e))
+                self.logger.warning(f"Error during mount cleanup: {error_msg}")
         
         else:
             self.logger.warning(f"Cleanup skipped for {storage_type} storage")
@@ -358,8 +432,18 @@ class PostgreSQLBackupManager:
             if backup_path:
                 self.logger.info(f"Successfully created backup for {self.database_name}")
                 self.cleanup_all_storages()
+                # Ensure all mounted resources are unmounted
+                try:
+                    self.remote_storage.cleanup_all_mounts()
+                except Exception as e:
+                    self.logger.warning(f"Error during mount cleanup: {e}")
                 return True
             else:
+                # Ensure all mounted resources are unmounted even on failure
+                try:
+                    self.remote_storage.cleanup_all_mounts()
+                except Exception as e:
+                    self.logger.warning(f"Error during mount cleanup: {e}")
                 return False
         
         # Multi-database mode
@@ -392,6 +476,12 @@ class PostgreSQLBackupManager:
         # Clean up old backups for all storages
         self.cleanup_all_storages()
         
+        # Ensure all mounted resources are unmounted
+        try:
+            self.remote_storage.cleanup_all_mounts()
+        except Exception as e:
+            self.logger.warning(f"Error during mount cleanup: {e}")
+        
         return success_count > 0
     
     def _test_database_connection(self, config: Dict[str, Any]) -> bool:
@@ -413,7 +503,8 @@ class PostgreSQLBackupManager:
             conn.close()
             return True
         except Exception as e:
-            self.logger.error(f"Database connection error for {db_config['name']}: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Database connection error for {db_config['name']}: {error_msg}")
             return False
 
 
@@ -439,6 +530,7 @@ def main():
                        help='Validate retention configuration and exit')
     
     args = parser.parse_args()
+    manager = None
     
     try:
         # Determine configuration mode
@@ -519,6 +611,13 @@ def main():
     except Exception as e:
         print(f"Critical error: {e}")
         sys.exit(1)
+    finally:
+        # Ensure all mounted resources are unmounted before exit
+        if manager and hasattr(manager, 'remote_storage'):
+            try:
+                manager.remote_storage.cleanup_all_mounts()
+            except Exception as cleanup_error:
+                print(f"Warning: Error during final mount cleanup: {cleanup_error}")
 
 
 if __name__ == "__main__":

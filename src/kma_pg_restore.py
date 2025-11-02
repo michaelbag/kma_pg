@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Restore Manager
-Version: 2.0.5/1.1.6
+Version: 2.0.5/1.1.7
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -19,6 +19,7 @@ import argparse
 import tempfile
 import gzip
 import shutil
+import re
 from pathlib import Path
 from typing import Dict, List, Optional
 import psycopg2
@@ -26,6 +27,61 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from kma_pg_version import get_version
 from kma_pg_config_manager import DatabaseConfigManager
 from kma_pg_storage import RemoteStorageManager
+
+
+def mask_password(text: str) -> str:
+    """
+    Mask passwords in text strings to prevent logging sensitive information.
+    
+    Args:
+        text: Text string that may contain passwords
+        
+    Returns:
+        Text with passwords masked
+    """
+    if not text:
+        return text
+    
+    # Mask password=value patterns (case insensitive)
+    text = re.sub(
+        r'(password\s*[=:]\s*)([^\s\'"&,}]+)',
+        r'\1****',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask PGPASSWORD=value patterns
+    text = re.sub(
+        r'(PGPASSWORD\s*=\s*)([^\s\'"]+)',
+        r'\1****',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask password in URLs like //username:password@server
+    text = re.sub(
+        r'(://[^:]+:)([^@]+)(@)',
+        r'\1****\3',
+        text
+    )
+    
+    # Mask passwords in connection strings like "password='...'"
+    text = re.sub(
+        r"(password\s*[=:]\s*['\"])([^'\"]+)(['\"])",
+        r'\1****\3',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    # Mask passwords in dictionary/JSON representations
+    text = re.sub(
+        r"(['\"]password['\"]\s*:\s*['\"])([^'\"]+)(['\"])",
+        r'\1****\3',
+        text,
+        flags=re.IGNORECASE
+    )
+    
+    return text
 
 
 class PostgreSQLRestoreManager:
@@ -111,7 +167,8 @@ class PostgreSQLRestoreManager:
             self.logger.info("Database connection successful")
             return True
         except Exception as e:
-            self.logger.error(f"Database connection error: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Database connection error: {error_msg}")
             return False
     
     def create_database(self, database_name: str) -> bool:
@@ -150,7 +207,8 @@ class PostgreSQLRestoreManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Error creating database {database_name}: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Error creating database {database_name}: {error_msg}")
             return False
     
     def drop_database(self, database_name: str) -> bool:
@@ -189,9 +247,11 @@ class PostgreSQLRestoreManager:
                 
                 result = subprocess.run(terminate_cmd, env=env, capture_output=True, text=True, check=False)
                 if result.returncode != 0:
-                    self.logger.warning(f"Could not terminate connections: {result.stderr}")
+                    stderr_msg = mask_password(result.stderr) if result.stderr else ""
+                    self.logger.warning(f"Could not terminate connections: {stderr_msg}")
             except Exception as e:
-                self.logger.warning(f"Could not terminate connections: {e}")
+                error_msg = mask_password(str(e))
+                self.logger.warning(f"Could not terminate connections: {error_msg}")
             
             # Now try to drop database using template1 or postgres
             databases_to_try = ['template1', 'postgres', 'template0']
@@ -242,7 +302,8 @@ class PostgreSQLRestoreManager:
             return True
             
         except Exception as e:
-            self.logger.error(f"Error dropping database: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Error dropping database: {error_msg}")
             return False
     
     def restore_from_custom(self, backup_file: str, database_name: str) -> bool:
@@ -306,7 +367,8 @@ class PostgreSQLRestoreManager:
                     return False
             
         except Exception as e:
-            self.logger.error(f"Restore error: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Restore error: {error_msg}")
             return False
     
     def restore_from_plain(self, backup_file: str, database_name: str) -> bool:
@@ -330,7 +392,8 @@ class PostgreSQLRestoreManager:
                 
                 restore_file = temp_file.name
             except Exception as e:
-                self.logger.error(f"Error decompressing backup file: {e}")
+                error_msg = mask_password(str(e))
+                self.logger.error(f"Error decompressing backup file: {error_msg}")
                 try:
                     os.unlink(temp_file.name)
                 except:
@@ -477,7 +540,8 @@ class PostgreSQLRestoreManager:
                 self.logger.error(f"Failed to download {remote_filename} from remote storage")
                 return None
         except Exception as e:
-            self.logger.error(f"Error downloading from remote storage: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Error downloading from remote storage: {error_msg}")
             return None
     
     def list_remote_backups(self) -> List[str]:
@@ -489,7 +553,8 @@ class PostgreSQLRestoreManager:
         try:
             return self.remote_storage.list_backups()
         except Exception as e:
-            self.logger.error(f"Error listing remote backups: {e}")
+            error_msg = mask_password(str(e))
+            self.logger.error(f"Error listing remote backups: {error_msg}")
             return []
     
     def restore_from_remote(self, remote_filename: str, target_database: str, create_db: bool = False, clean_db: bool = False) -> bool:
