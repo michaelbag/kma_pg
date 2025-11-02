@@ -17,6 +17,8 @@ import logging
 import subprocess
 import argparse
 import tempfile
+import gzip
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 import psycopg2
@@ -93,12 +95,18 @@ class PostgreSQLRestoreManager:
         """Test database connection"""
         db_config = self.config['database']
         try:
-            conn = psycopg2.connect(
-                host=db_config['host'],
-                port=db_config['port'],
-                user=db_config['username'],
-                password=db_config['password']
-            )
+            # Build connection parameters
+            conn_params = {
+                'host': db_config['host'],
+                'port': db_config['port'],
+                'user': db_config['username'],
+                'password': db_config['password']
+            }
+            # Add SSL mode if specified
+            if 'sslmode' in db_config:
+                conn_params['sslmode'] = db_config['sslmode']
+            
+            conn = psycopg2.connect(**conn_params)
             conn.close()
             self.logger.info("Database connection successful")
             return True
@@ -110,12 +118,18 @@ class PostgreSQLRestoreManager:
         """Create database"""
         db_config = self.config['database']
         try:
-            conn = psycopg2.connect(
-                host=db_config['host'],
-                port=db_config['port'],
-                user=db_config['username'],
-                password=db_config['password']
-            )
+            # Build connection parameters
+            conn_params = {
+                'host': db_config['host'],
+                'port': db_config['port'],
+                'user': db_config['username'],
+                'password': db_config['password']
+            }
+            # Add SSL mode if specified
+            if 'sslmode' in db_config:
+                conn_params['sslmode'] = db_config['sslmode']
+            
+            conn = psycopg2.connect(**conn_params)
             conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
             cursor = conn.cursor()
             
@@ -153,10 +167,13 @@ class PostgreSQLRestoreManager:
             
             drop_sql = f'DROP DATABASE "{database_name}";'
             
-            # Set environment variable for password
+            # Set environment variables for password and SSL
             env = os.environ.copy()
             if db_config['password']:
                 env['PGPASSWORD'] = db_config['password']
+            # Add SSL mode if specified
+            if 'sslmode' in db_config:
+                env['PGSSLMODE'] = db_config['sslmode']
             
             # First, terminate connections using any available database
             # Try to connect to the target database itself for termination
@@ -250,6 +267,9 @@ class PostgreSQLRestoreManager:
         env = os.environ.copy()
         if db_config['password']:
             env['PGPASSWORD'] = db_config['password']
+        # Add SSL mode if specified (via environment variable)
+        if 'sslmode' in db_config:
+            env['PGSSLMODE'] = db_config['sslmode']
         
         try:
             self.logger.info(f"Restoring database {database_name} from {backup_file}")
@@ -293,18 +313,49 @@ class PostgreSQLRestoreManager:
         """Restore from plain format"""
         db_config = self.config['database']
         
+        backup_path = Path(backup_file)
+        is_compressed = backup_path.suffixes == ['.sql', '.gz'] or backup_path.suffixes == ['.gz']
+        
+        # Handle compressed files
+        if is_compressed:
+            # Decompress to temporary file
+            temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.sql', delete=False)
+            temp_file.close()
+            
+            try:
+                self.logger.info(f"Decompressing backup file: {backup_file}")
+                with gzip.open(backup_file, 'rt', encoding='utf-8') as f_in:
+                    with open(temp_file.name, 'w', encoding='utf-8') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                
+                restore_file = temp_file.name
+            except Exception as e:
+                self.logger.error(f"Error decompressing backup file: {e}")
+                try:
+                    os.unlink(temp_file.name)
+                except:
+                    pass
+                return False
+        else:
+            restore_file = backup_file
+            temp_file = None
+        
+        # Build psql command
         cmd = [
             'psql',
             '-h', db_config['host'],
             '-p', str(db_config['port']),
             '-U', db_config['username'],
             '-d', database_name,
-            '-f', backup_file
+            '-f', restore_file
         ]
         
         env = os.environ.copy()
         if db_config['password']:
             env['PGPASSWORD'] = db_config['password']
+        # Add SSL mode if specified (via environment variable)
+        if 'sslmode' in db_config:
+            env['PGSSLMODE'] = db_config['sslmode']
         
         try:
             self.logger.info(f"Restoring database {database_name} from {backup_file}")
@@ -316,6 +367,13 @@ class PostgreSQLRestoreManager:
             self.logger.error(f"Restore error: {e}")
             self.logger.error(f"Error output: {e.stderr}")
             return False
+        finally:
+            # Clean up temporary file if created
+            if temp_file and os.path.exists(temp_file.name):
+                try:
+                    os.unlink(temp_file.name)
+                except:
+                    pass
     
     def detect_backup_format(self, backup_file: str) -> str:
         """Detect backup format"""

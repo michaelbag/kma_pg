@@ -101,16 +101,35 @@ class RemoteStorageManager:
             raise ValueError("CIFS server, username, and password are required")
         
         try:
-            # Create mount point if it doesn't exist
-            os.makedirs(mount_point, exist_ok=True)
-            
             # Mount CIFS share if auto_mount is enabled
             if auto_mount:
                 # Check if already mounted
-                if not os.path.ismount(mount_point):
-                    self._mount_cifs_share(server, username, password, mount_point)
-                else:
+                if os.path.ismount(mount_point):
                     print(f"CIFS share already mounted at {mount_point}")
+                else:
+                    # Check if directory exists but is not a mount point
+                    if os.path.exists(mount_point):
+                        if not os.path.isdir(mount_point):
+                            raise ValueError(f"Mount point {mount_point} exists but is not a directory")
+                        # Directory exists but not mounted - try to remove it if empty
+                        try:
+                            # Check if directory is empty (allow .DS_Store on macOS)
+                            contents = [f for f in os.listdir(mount_point) if f != '.DS_Store']
+                            if not contents:
+                                # Directory is empty, safe to try mounting
+                                pass
+                            else:
+                                # Directory has contents - might be a previous mount that didn't unmount properly
+                                print(f"Warning: Mount point {mount_point} contains files. Attempting to use existing directory.")
+                        except OSError:
+                            # Can't list directory, might be a mount issue
+                            pass
+                    else:
+                        # Create mount point if it doesn't exist
+                        os.makedirs(mount_point, exist_ok=True)
+                    
+                    # Try to mount
+                    self._mount_cifs_share(server, username, password, mount_point)
             
             # Check if mount point is accessible
             if not os.path.ismount(mount_point):
@@ -199,9 +218,40 @@ class RemoteStorageManager:
             
             if system == 'darwin':  # macOS
                 # Use mount_smbfs for macOS
+                # Check if already mounted at this point
+                if os.path.ismount(mount_point):
+                    print(f"CIFS share already mounted at {mount_point}")
+                    return
+                
+                # On macOS, check if this share is already mounted elsewhere
+                # mount_smbfs typically mounts to /Volumes/sharename
+                try:
+                    mount_result = subprocess.run(['mount'], capture_output=True, text=True)
+                    clean_server = server.replace("//", "").replace("\\", "/").split('/')[-1]
+                    # Look for existing mounts of this share
+                    for line in mount_result.stdout.split('\n'):
+                        if 'smbfs' in line.lower() and clean_server in line:
+                            # Share is already mounted somewhere
+                            existing_mount = line.split(' on ')[-1].split(' ')[0] if ' on ' in line else None
+                            if existing_mount and existing_mount != mount_point:
+                                print(f"Share {clean_server} is already mounted at {existing_mount}")
+                                # Option 1: Use existing mount point
+                                if mount_point != existing_mount:
+                                    print(f"Using existing mount point: {existing_mount}")
+                                    # Update mount_point in caller if possible, or use existing
+                                    # For now, we'll try to unmount and remount
+                                    try:
+                                        subprocess.run(['umount', existing_mount], check=False, timeout=5)
+                                    except:
+                                        pass
+                except:
+                    pass
+                
+                # Clean up server path
+                clean_server = server.replace("//", "").replace("\\", "/")
                 mount_cmd = [
                     'mount_smbfs',
-                    f'//{username}:{password}@{server.replace("//", "").replace("/", "/")}',
+                    f'//{username}:{password}@{clean_server}',
                     mount_point
                 ]
             else:  # Linux
@@ -220,6 +270,18 @@ class RemoteStorageManager:
             # Execute mount
             result = subprocess.run(mount_cmd, capture_output=True, text=True)
             if result.returncode != 0:
+                # Check if error is "File exists" - this means directory exists but not mounted
+                if "File exists" in result.stderr or "mount: /" in result.stderr:
+                    # Try to use the existing directory if it's accessible
+                    if os.path.exists(mount_point) and os.path.isdir(mount_point):
+                        print(f"Warning: Mount point {mount_point} already exists. Using existing directory.")
+                        # Check if it's actually mounted (might be mounted elsewhere)
+                        if os.path.ismount(mount_point):
+                            print(f"CIFS share already mounted at {mount_point}")
+                            return
+                        else:
+                            # Not mounted but directory exists - might need to clean up
+                            raise RuntimeError(f"Mount point {mount_point} exists but is not mounted. Please check or remove the directory.")
                 raise RuntimeError(f"Failed to mount CIFS share: {result.stderr}")
             
             print(f"CIFS share mounted at {mount_point}")

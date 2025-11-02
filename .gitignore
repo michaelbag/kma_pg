@@ -46,6 +46,7 @@ Thumbs.db
 
 # Project specific
 backups/
+remote/
 test_backup/
 logs/
 *.log

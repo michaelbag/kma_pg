@@ -131,12 +131,18 @@ class PostgreSQLBackupManager:
         """Test database connection"""
         db_config = self.config['database']
         try:
-            conn = psycopg2.connect(
-                host=db_config['host'],
-                port=db_config['port'],
-                user=db_config['username'],
-                password=db_config['password']
-            )
+            # Build connection parameters
+            conn_params = {
+                'host': db_config['host'],
+                'port': db_config['port'],
+                'user': db_config['username'],
+                'password': db_config['password']
+            }
+            # Add SSL mode if specified
+            if 'sslmode' in db_config:
+                conn_params['sslmode'] = db_config['sslmode']
+            
+            conn = psycopg2.connect(**conn_params)
             conn.close()
             self.logger.info("Database connection successful")
             return True
@@ -221,6 +227,10 @@ class PostgreSQLBackupManager:
             '-d', actual_database_name,
             '-f', str(backup_path)
         ]
+        
+        # Add SSL mode if specified
+        if 'sslmode' in db_config:
+            cmd.extend(['--sslmode', db_config['sslmode']])
         
         if backup_format == 'custom':
             cmd.append('-Fc')
@@ -388,12 +398,18 @@ class PostgreSQLBackupManager:
         """Test connection to specific database"""
         db_config = config['database']
         try:
-            conn = psycopg2.connect(
-                host=db_config['host'],
-                port=db_config['port'],
-                user=db_config['username'],
-                password=db_config['password']
-            )
+            # Build connection parameters
+            conn_params = {
+                'host': db_config['host'],
+                'port': db_config['port'],
+                'user': db_config['username'],
+                'password': db_config['password']
+            }
+            # Add SSL mode if specified
+            if 'sslmode' in db_config:
+                conn_params['sslmode'] = db_config['sslmode']
+            
+            conn = psycopg2.connect(**conn_params)
             conn.close()
             return True
         except Exception as e:

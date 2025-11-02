@@ -11,6 +11,7 @@ import os
 import sys
 import yaml
 import json
+import getpass
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set
 from kma_pg_config_manager import DatabaseConfigManager
@@ -190,6 +191,42 @@ class ConfigBuilder:
             except (EOFError, KeyboardInterrupt):
                 return default
     
+    def _get_password_with_confirmation(self, prompt: str, 
+                                         password_name: str = "password",
+                                         required: bool = True) -> Optional[str]:
+        """Get password input with confirmation (hidden input)"""
+        max_attempts = 3
+        
+        for attempt in range(max_attempts):
+            try:
+                # First password input
+                password = getpass.getpass(f"{prompt}: ")
+                
+                if not password and required:
+                    print("Password is required. Please enter a password.")
+                    continue
+                elif not password and not required:
+                    return None
+                
+                # Confirmation input
+                confirm_password = getpass.getpass(f"Confirm {password_name}: ")
+                
+                if password == confirm_password:
+                    return password
+                else:
+                    remaining = max_attempts - attempt - 1
+                    if remaining > 0:
+                        print(f"❌ Passwords do not match. Please try again ({remaining} attempts remaining).")
+                    else:
+                        print("❌ Maximum attempts reached. Password not set.")
+                        return None
+                        
+            except (EOFError, KeyboardInterrupt):
+                print("\nPassword input cancelled")
+                return None
+        
+        return None
+    
     def build_database_config(self) -> Dict[str, Any]:
         """Build database configuration interactively"""
         print("=" * 60)
@@ -216,7 +253,9 @@ class ConfigBuilder:
             'username': self._get_input_with_suggestions(
                 "Database username:", 'usernames', required=True
             ),
-            'password': input("Database password: "),
+            'password': self._get_password_with_confirmation(
+                "Database password", "database password", required=True
+            ),
             'enabled': self._get_yes_no("Enable this database for backup operations?"),
             'auto_backup': self._get_yes_no("Include in automatic backup (cron jobs)?")
         }
@@ -313,7 +352,9 @@ class ConfigBuilder:
                     'username': self._get_input_with_suggestions(
                         "WebDAV username:", 'remote_usernames', required=True
                     ),
-                    'password': input("WebDAV password: "),
+                    'password': self._get_password_with_confirmation(
+                        "WebDAV password", "WebDAV password", required=True
+                    ),
                     'verify_ssl': self._get_yes_no("Verify SSL certificate?", default=True)
                 }
             
@@ -325,7 +366,9 @@ class ConfigBuilder:
                     'username': self._get_input_with_suggestions(
                         "CIFS username:", 'remote_usernames', required=True
                     ),
-                    'password': input("CIFS password: "),
+                    'password': self._get_password_with_confirmation(
+                        "CIFS password", "CIFS password", required=True
+                    ),
                     'mount_point': input("Local mount point: "),
                     'auto_mount': self._get_yes_no("Auto-mount share?", default=True)
                 }
@@ -339,7 +382,9 @@ class ConfigBuilder:
                     'username': self._get_input_with_suggestions(
                         "FTP username:", 'remote_usernames', required=True
                     ),
-                    'password': input("FTP password: "),
+                    'password': self._get_password_with_confirmation(
+                        "FTP password", "FTP password", required=True
+                    ),
                     'passive': self._get_yes_no("Use passive mode?", default=True)
                 }
         else:
@@ -411,6 +456,24 @@ class ConfigBuilder:
         try:
             # Build configuration
             config = self.build_database_config()
+            
+            # Check if any required passwords were not set
+            if config['database'].get('password') is None:
+                print("\n❌ Database password is required. Configuration cancelled.")
+                return
+            
+            remote_storage = config.get('backup', {}).get('remote_storage', {})
+            if remote_storage.get('enabled'):
+                remote_type = remote_storage.get('type')
+                if remote_type == 'webdav' and remote_storage.get('webdav', {}).get('password') is None:
+                    print("\n❌ WebDAV password is required. Configuration cancelled.")
+                    return
+                elif remote_type == 'cifs' and remote_storage.get('cifs', {}).get('password') is None:
+                    print("\n❌ CIFS password is required. Configuration cancelled.")
+                    return
+                elif remote_type == 'ftp' and remote_storage.get('ftp', {}).get('password') is None:
+                    print("\n❌ FTP password is required. Configuration cancelled.")
+                    return
             
             # Show summary
             self.show_config_summary(config)
