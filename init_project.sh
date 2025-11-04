@@ -402,6 +402,18 @@ create_venv() {
         exit 1
     fi
     echo "✓ Virtual environment created using $PYTHON_BIN"
+    
+    # Set ownership if PROJECT_USER is set and different from current user
+    if [ -n "$PROJECT_USER" ] && [ "$(whoami)" != "$PROJECT_USER" ]; then
+        if [ "$EUID" -eq 0 ] || sudo -n true 2>/dev/null; then
+            SUDO_CMD=""
+            if [ "$EUID" -ne 0 ]; then
+                SUDO_CMD="sudo"
+            fi
+            $SUDO_CMD chown -R "$PROJECT_USER":"$PROJECT_USER" venv 2>/dev/null || true
+            echo "✓ Virtual environment ownership set to $PROJECT_USER"
+        fi
+    fi
 }
 
 # Activate virtual environment
