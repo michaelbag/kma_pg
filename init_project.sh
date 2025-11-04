@@ -475,16 +475,35 @@ install_deps() {
     
     # If PROJECT_USER is set and different from current user, install as that user
     if [ -n "$PROJECT_USER" ] && [ "$(whoami)" != "$PROJECT_USER" ]; then
-        # Install as project user
+        # Install as project user with proper environment
         echo "Installing dependencies for user $PROJECT_USER..."
-        sudo -u "$PROJECT_USER" bash -lc "cd $PROJECT_DIR && source venv/bin/activate && python -m pip install --upgrade pip" 2>/dev/null || true
-        sudo -u "$PROJECT_USER" bash -lc "cd $PROJECT_DIR && source venv/bin/activate && pip install -r requirements.txt"
-        if [ $? -ne 0 ]; then
+        
+        # Get user's home directory
+        USER_HOME=$(getent passwd "$PROJECT_USER" | cut -d: -f6)
+        
+        # Install with proper home directory and cache directory
+        sudo -u "$PROJECT_USER" bash -c "
+            cd $PROJECT_DIR
+            export HOME='$USER_HOME'
+            export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
+            source venv/bin/activate
+            python -m pip install --upgrade pip --user 2>/dev/null || python -m pip install --upgrade pip
+        " 2>/dev/null || true
+        
+        # Install requirements as project user
+        if sudo -u "$PROJECT_USER" bash -c "
+            cd $PROJECT_DIR
+            export HOME='$USER_HOME'
+            export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
+            source venv/bin/activate
+            pip install --no-cache-dir -r requirements.txt
+        "; then
+            echo "✓ Dependencies installed for $PROJECT_USER"
+        else
             echo "ERROR: Failed to install dependencies for $PROJECT_USER"
             echo "Please check requirements.txt and try again"
             exit 1
         fi
-        echo "✓ Dependencies installed for $PROJECT_USER"
     else
         # Install as current user
         # Upgrade pip
