@@ -29,13 +29,23 @@ detect_os() {
 # Check if running as root
 check_root() {
     if [ "$EUID" -eq 0 ]; then
-        echo "WARNING: Running as root is not recommended"
-        echo "Consider running as a regular user with sudo privileges"
-        read -p "Continue anyway? (y/N): " -n 1 -r
+        echo "WARNING: Running as root is not recommended for security reasons"
+        echo ""
+        echo "Recommended approach:"
+        echo "  1. Install Python 3.8 from root (if needed):"
+        echo "     sudo apt update && sudo apt install -y python3.8 python3.8-venv python3.8-dev"
+        echo "  2. Run this script as regular user:"
+        echo "     ./init_project.sh"
+        echo ""
+        echo "The script will use sudo for system package installation when needed."
+        echo ""
+        read -p "Continue running as root anyway? (y/N): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
         fi
+        echo "Continuing as root..."
+        echo ""
     fi
 }
 
