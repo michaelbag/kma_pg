@@ -118,8 +118,15 @@ check_requirements() {
                     echo ""
                     echo "Failed to install Python 3.8 automatically"
                     echo ""
-                    echo "If Python 3.8 is already installed in the system, the script will continue."
-                    echo "Otherwise, please install it manually as root:"
+                    # Check if Python 3.8 might have been installed manually (don't exit yet)
+                    if command -v python3.8 &> /dev/null; then
+                        if python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+                            echo "✓ Python 3.8 found in system, continuing..."
+                            PYTHON_BIN="python3.8"
+                            return 0
+                        fi
+                    fi
+                    echo "Python 3.8 is not installed. Please install it manually as root:"
                     echo "  sudo apt update"
                     echo "  sudo apt install -y software-properties-common"
                     echo "  sudo add-apt-repository -y ppa:deadsnakes/ppa"
@@ -129,19 +136,11 @@ check_requirements() {
                     echo ""
                     echo "Then run this script again."
                     echo ""
-                    # Don't exit yet - check if Python 3.8 might have been installed manually
-                    if command -v python3.8 &> /dev/null; then
-                        if python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
-                            echo "✓ Python 3.8 found in system, continuing..."
-                            PYTHON_BIN="python3.8"
-                            return 0
-                        fi
-                    fi
                 fi
             fi
         fi
         
-        # Final check - maybe Python 3.8 was installed between checks
+        # Final check - maybe Python 3.8 was installed between checks or is available
         if command -v python3.8 &> /dev/null; then
             if python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
                 echo "✓ Python 3.8 found in system, continuing..."
@@ -149,6 +148,17 @@ check_requirements() {
                 return 0
             fi
         fi
+        
+        # Check for other Python versions one more time
+        for pyver in python3.9 python3.10 python3.11 python3.12; do
+            if command -v $pyver &> /dev/null; then
+                if $pyver -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+                    echo "✓ $pyver found in system, continuing..."
+                    PYTHON_BIN="$pyver"
+                    return 0
+                fi
+            fi
+        done
         
         echo "ERROR: Python 3.7 or later is required (found $PYTHON_VERSION)"
         echo ""
