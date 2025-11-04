@@ -95,7 +95,7 @@ brew install postgresql
 
 # Clone and setup project
 git clone <repository-url>
-cd kma_pg_backup_manager
+cd kma_pg
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -114,7 +114,7 @@ sudo apt install python3 python3-pip python3-venv postgresql-client cifs-utils s
 
 # Clone and setup project
 git clone <repository-url>
-cd kma_pg_backup_manager
+cd kma_pg
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -162,7 +162,7 @@ python src/kma_pg_backup.py --test-connection
 
 # Clone and setup project
 git clone <repository-url>
-cd kma_pg_backup_manager
+cd kma_pg
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
