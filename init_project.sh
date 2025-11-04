@@ -193,7 +193,7 @@ install_python38_ubuntu() {
         echo "  sudo add-apt-repository -y ppa:deadsnakes/ppa"
         echo "  sudo apt update"
         echo "  sudo apt install -y python3.8 python3.8-venv python3.8-dev python3.8-distutils"
-        echo "  curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.8"
+        echo "  curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | sudo python3.8"
         echo ""
         echo "Or configure passwordless sudo for this user, then run the script again"
         echo ""
