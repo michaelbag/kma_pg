@@ -35,8 +35,8 @@ sudo apt install -y \
     python3.8-dev \
     python3.8-distutils
 
-# Установить pip для Python 3.8
-curl -sS https://bootstrap.pypa.io/get-pip.py | python3.8
+# Установить pip для Python 3.8 (используйте специальную версию для Python 3.8)
+curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | sudo python3.8
 ```
 
 После установки Python 3.8 запустите скрипт инициализации снова:
