@@ -320,22 +320,62 @@ install_system_deps() {
         
         # Install required packages
         echo "Installing required packages..."
+        
+        # Install packages that are usually safe
         $SUDO_CMD apt install -y \
             python3-venv \
             python3-pip \
-            postgresql-client \
             build-essential \
-            libpq-dev \
-            python3-dev
+            python3-dev 2>&1 | tee /tmp/apt_install.log
+        
+        INSTALL_RESULT=$?
+        
+        # Try to install postgresql-client and libpq-dev
+        # These might have dependency conflicts with custom PostgreSQL installations
+        if $SUDO_CMD apt install -y postgresql-client libpq-dev 2>&1 | tee -a /tmp/apt_install.log; then
+            echo "✓ PostgreSQL client and libpq-dev installed"
+        else
+            echo ""
+            echo "WARNING: Failed to install postgresql-client or libpq-dev"
+            echo "This might be due to version conflicts with an existing PostgreSQL installation."
+            echo ""
+            echo "Common solutions:"
+            echo "1. If you have PostgreSQL 11 installed, try:"
+            echo "   sudo apt install -y postgresql-client-11 libpq-dev"
+            echo ""
+            echo "2. Or fix broken dependencies first:"
+            echo "   sudo apt --fix-broken install"
+            echo "   sudo apt install -y postgresql-client libpq-dev"
+            echo ""
+            echo "3. If you have a custom PostgreSQL installation, libpq-dev might already be available."
+            echo "   You can continue and the script will try to install Python dependencies."
+            echo ""
+            read -p "Continue with installation? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "Installation cancelled. Please fix package dependencies and run the script again."
+                exit 1
+            fi
+        fi
         
         # For Ubuntu 18.04 with Python 3.8, install additional packages
         if [[ "$VER" == "18.04" ]] && [[ "$PYTHON_BIN" == "python3.8" ]]; then
-            $SUDO_CMD apt install -y \
-                python3.8-venv \
-                python3.8-dev
+            if $SUDO_CMD apt install -y python3.8-venv python3.8-dev 2>&1 | tee -a /tmp/apt_install.log; then
+                echo "✓ Python 3.8 packages installed"
+            else
+                echo "WARNING: Failed to install Python 3.8 packages"
+                echo "This might not be critical if Python 3.8 is already working."
+            fi
         fi
         
-        echo "✓ System dependencies installed"
+        # Check if critical packages are installed
+        if command -v python3 &> /dev/null && command -v pip3 &> /dev/null; then
+            echo "✓ Critical system dependencies installed"
+        else
+            echo "ERROR: Critical dependencies (python3, pip3) are missing"
+            echo "Please install them manually and run the script again"
+            exit 1
+        fi
     elif [[ "$OS" == *"CentOS"* ]] || [[ "$OS" == *"Red Hat"* ]]; then
         echo "Detected CentOS/RHEL system"
         
