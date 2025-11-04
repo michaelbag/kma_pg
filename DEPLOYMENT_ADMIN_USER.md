@@ -1,35 +1,35 @@
-# Развертывание с разделением прав: Администратор и рабочий пользователь
+# Deployment with Role Separation: Administrator and Worker User
 
-## 📋 Сценарий использования
+## 📋 Use Case Scenario
 
-**Администратор:**
-- Имеет права sudo
-- Выполняет инициализацию проекта
-- Устанавливает системные зависимости
+**Administrator:**
+- Has sudo privileges
+- Performs project initialization
+- Installs system dependencies
 
-**Рабочий пользователь:**
-- Не имеет прав sudo
-- Выполняет операции бэкапа/восстановления
-- Работает с проектом в обычном режиме
+**Worker User:**
+- Does not have sudo privileges
+- Performs backup/restore operations
+- Works with the project in normal mode
 
 ---
 
-## 🚀 Процесс развертывания
+## 🚀 Deployment Process
 
-### Шаг 1: Подготовка (от администратора)
+### Step 1: Preparation (as Administrator)
 
-#### 1.1 Создать рабочего пользователя (если не существует)
+#### 1.1 Create Worker User (if not exists)
 
 ```bash
-# От root или с sudo
+# As root or with sudo
 sudo useradd -m -s /bin/bash kma_pg
-# Или использовать существующего пользователя
+# Or use existing user
 ```
 
-#### 1.2 Установить Python 3.8 (для Ubuntu 18.04)
+#### 1.2 Install Python 3.8 (for Ubuntu 18.04)
 
 ```bash
-# От root
+# As root
 sudo apt update
 sudo apt install -y software-properties-common
 sudo add-apt-repository -y ppa:deadsnakes/ppa
@@ -38,10 +38,10 @@ sudo apt install -y python3.8 python3.8-venv python3.8-dev python3.8-distutils
 curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | sudo python3.8
 ```
 
-#### 1.3 Установить системные зависимости
+#### 1.3 Install System Dependencies
 
 ```bash
-# От root
+# As root
 sudo apt install -y \
     postgresql-client \
     cifs-utils \
@@ -52,50 +52,50 @@ sudo apt install -y \
 
 ---
 
-### Шаг 2: Клонирование и инициализация (от администратора)
+### Step 2: Cloning and Initialization (as Administrator)
 
-#### 2.1 Клонировать репозиторий
+#### 2.1 Clone Repository
 
 ```bash
-# От администратора (с sudo правами)
-cd /opt  # или другое подходящее место
+# As administrator (with sudo privileges)
+cd /opt  # or another suitable location
 sudo git clone https://github.com/michaelbag/kma_pg.git
 cd kma_pg
 ```
 
-#### 2.2 Запустить скрипт инициализации
+#### 2.2 Run Initialization Script
 
 ```bash
-# От администратора (можно запустить от root или с sudo)
+# As administrator (can run as root or with sudo)
 sudo ./init_project.sh
 ```
 
-**В процессе инициализации скрипт:**
-1. Запросит имя рабочего пользователя (например: `kma_pg`)
-2. Установит системные зависимости (если нужно)
-3. Создаст виртуальную среду
-4. Установит Python зависимости
-5. Передаст владение всех файлов рабочему пользователю
-6. Протестирует установку от имени рабочего пользователя
+**During initialization, the script will:**
+1. Ask for worker user name (e.g., `kma_pg`)
+2. Install system dependencies (if needed)
+3. Create virtual environment
+4. Install Python dependencies
+5. Transfer ownership of all files to worker user
+6. Test installation as worker user
 
 ---
 
-### Шаг 3: Настройка прав доступа (от администратора)
+### Step 3: Access Rights Configuration (as Administrator)
 
-#### 3.1 Настроить права PostgreSQL для рабочего пользователя
+#### 3.1 Configure PostgreSQL Permissions for Worker User
 
-См. `USER_PERMISSIONS.md` для детальных инструкций.
+See `USER_PERMISSIONS.md` for detailed instructions.
 
-**Минимальные права для BACKUP:**
+**Minimum permissions for BACKUP:**
 ```sql
--- От имени postgres или другого суперпользователя
+-- As postgres or another superuser
 GRANT CONNECT ON DATABASE database_name TO kma_pg;
 GRANT USAGE ON SCHEMA public TO kma_pg;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO kma_pg;
 GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO kma_pg;
 ```
 
-**Минимальные права для RESTORE:**
+**Minimum permissions for RESTORE:**
 ```sql
 GRANT CONNECT ON DATABASE database_name TO kma_pg;
 GRANT CREATE ON SCHEMA public TO kma_pg;
@@ -104,39 +104,39 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO kma_pg;
 GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO kma_pg;
 ```
 
-Или используйте готовые скрипты:
+Or use ready-made scripts:
 ```bash
-# Для backup-only
+# For backup-only
 sudo -u postgres psql -d database_name -f scripts/grant_minimal_backup_permissions.sql
 
-# Для backup+restore
+# For backup+restore
 sudo -u postgres psql -d database_name -f scripts/grant_minimal_restore_permissions.sql
 ```
 
 ---
 
-### Шаг 4: Конфигурация (от рабочего пользователя)
+### Step 4: Configuration (as Worker User)
 
-#### 4.1 Переключиться на рабочего пользователя
+#### 4.1 Switch to Worker User
 
 ```bash
 sudo su - kma_pg
 cd /opt/kma_pg
 ```
 
-#### 4.2 Активировать виртуальную среду
+#### 4.2 Activate Virtual Environment
 
 ```bash
 source venv/bin/activate
 ```
 
-#### 4.3 Создать конфигурацию
+#### 4.3 Create Configuration
 
 ```bash
 python src/kma_pg_config_setup.py
 ```
 
-#### 4.4 Протестировать подключение
+#### 4.4 Test Connection
 
 ```bash
 python src/kma_pg_backup.py --test-connection
@@ -144,159 +144,158 @@ python src/kma_pg_backup.py --test-connection
 
 ---
 
-### Шаг 5: Создание первого бэкапа (от рабочего пользователя)
+### Step 5: Create First Backup (as Worker User)
 
 ```bash
-# Активировать виртуальную среду
+# Activate virtual environment
 source venv/bin/activate
 
-# Создать бэкап
+# Create backup
 python src/kma_pg_backup.py
 ```
 
 ---
 
-## 📁 Структура прав доступа
+## 📁 Access Rights Structure
 
-### После инициализации:
+### After Initialization:
 
 ```
 /opt/kma_pg/
-├── venv/                    # Владелец: kma_pg
-├── src/                     # Владелец: kma_pg
-├── config/                  # Владелец: kma_pg
-│   └── databases/          # Владелец: kma_pg
-├── logs/                    # Владелец: kma_pg
-├── backups/                 # Владелец: kma_pg
-└── scripts/                 # Владелец: kma_pg
+├── venv/                    # Owner: kma_pg
+├── src/                     # Owner: kma_pg
+├── config/                  # Owner: kma_pg
+│   └── databases/          # Owner: kma_pg
+├── logs/                    # Owner: kma_pg
+├── backups/                 # Owner: kma_pg
+└── scripts/                 # Owner: kma_pg
 ```
 
-**Все файлы принадлежат рабочему пользователю `kma_pg`**
+**All files belong to worker user `kma_pg`**
 
 ---
 
-## 🔒 Безопасность
+## 🔒 Security
 
-### Права на файлы
+### File Permissions
 
 ```bash
-# Конфигурационные файлы (содержат пароли)
+# Configuration files (contain passwords)
 chmod 600 config/config.yaml
 chmod 600 config/databases/*.yaml
 
-# Директории
+# Directories
 chmod 700 backups/
 chmod 755 logs/
 ```
 
-### Права рабочего пользователя
+### Worker User Permissions
 
-- ✅ **Может:** Читать/писать файлы проекта
-- ✅ **Может:** Запускать скрипты Python
-- ✅ **Может:** Использовать виртуальную среду
-- ✅ **Может:** Подключаться к PostgreSQL (с правильными правами)
-- ❌ **Не может:** Устанавливать системные пакеты
-- ❌ **Не может:** Монтировать CIFS (требует sudo, но может использовать уже смонтированные)
+- ✅ **Can:** Read/write project files
+- ✅ **Can:** Run Python scripts
+- ✅ **Can:** Use virtual environment
+- ✅ **Can:** Connect to PostgreSQL (with proper permissions)
+- ❌ **Cannot:** Install system packages
+- ❌ **Cannot:** Mount CIFS (requires sudo, but can use already mounted shares)
 
 ---
 
-## ⚠️ Особые случаи
+## ⚠️ Special Cases
 
-### CIFS монтирование без sudo
+### CIFS Mounting Without Sudo
 
-Если рабочему пользователю нужно монтировать CIFS, есть несколько вариантов:
+If the worker user needs to mount CIFS, there are several options:
 
-#### Вариант 1: Использовать уже смонтированную точку
+#### Option 1: Use Already Mounted Share
 
 ```bash
-# Администратор монтирует CIFS
+# Administrator mounts CIFS
 sudo mount -t cifs //server/share /mnt/backup -o username=user,password=pass
 
-# Затем меняет права на точку монтирования
+# Then change ownership of mount point
 sudo chown kma_pg:kma_pg /mnt/backup
 
-# Рабочий пользователь использует уже смонтированную точку
+# Worker user uses already mounted share
 ```
 
-#### Вариант 2: Настроить passwordless sudo только для mount.cifs
+#### Option 2: Configure Passwordless Sudo Only for mount.cifs
 
 ```bash
-# От root, добавить в /etc/sudoers.d/kma_pg
+# As root, add to /etc/sudoers.d/kma_pg
 echo "kma_pg ALL=(ALL) NOPASSWD: /sbin/mount.cifs, /bin/umount" | sudo tee /etc/sudoers.d/kma_pg
 ```
 
-#### Вариант 3: Использовать fstab для автоматического монтирования
+#### Option 3: Use fstab for Automatic Mounting
 
 ```bash
-# От root, добавить в /etc/fstab
+# As root, add to /etc/fstab
 //server/share /mnt/backup cifs username=user,password=pass,uid=kma_pg,gid=kma_pg 0 0
 ```
 
 ---
 
-## 📋 Чек-лист развертывания
+## 📋 Deployment Checklist
 
-### От администратора:
-- [ ] Создан рабочий пользователь
-- [ ] Установлен Python 3.8 (для Ubuntu 18.04)
-- [ ] Установлены системные зависимости
-- [ ] Клонирован репозиторий
-- [ ] Запущен `init_project.sh`
-- [ ] Указан рабочий пользователь при инициализации
-- [ ] Настроены права PostgreSQL для рабочего пользователя
-- [ ] Проверено владение файлов (должно быть у рабочего пользователя)
+### As Administrator:
+- [ ] Worker user created
+- [ ] Python 3.8 installed (for Ubuntu 18.04)
+- [ ] System dependencies installed
+- [ ] Repository cloned
+- [ ] `init_project.sh` executed
+- [ ] Worker user specified during initialization
+- [ ] PostgreSQL permissions configured for worker user
+- [ ] File ownership verified (should belong to worker user)
 
-### От рабочего пользователя:
-- [ ] Активирована виртуальная среда
-- [ ] Создана конфигурация
-- [ ] Протестировано подключение к БД
-- [ ] Протестировано подключение к удаленному хранилищу
-- [ ] Создан первый бэкап
+### As Worker User:
+- [ ] Virtual environment activated
+- [ ] Configuration created
+- [ ] Database connection tested
+- [ ] Remote storage connection tested
+- [ ] First backup created
 
 ---
 
-## 🐛 Устранение проблем
+## 🐛 Troubleshooting
 
-### Проблема: "Permission denied" при запуске скриптов
+### Problem: "Permission denied" when running scripts
 
-**Решение:**
+**Solution:**
 ```bash
-# Проверить владельца файлов
+# Check file ownership
 ls -la /opt/kma_pg
 
-# Если владелец не kma_pg, исправить:
+# If owner is not kma_pg, fix it:
 sudo chown -R kma_pg:kma_pg /opt/kma_pg
 ```
 
-### Проблема: "Cannot activate virtual environment"
+### Problem: "Cannot activate virtual environment"
 
-**Решение:**
+**Solution:**
 ```bash
-# Проверить права на venv
+# Check venv permissions
 ls -la venv/
 
-# Если права неправильные:
+# If permissions are incorrect:
 sudo chown -R kma_pg:kma_pg venv/
 ```
 
-### Проблема: "Cannot mount CIFS share"
+### Problem: "Cannot mount CIFS share"
 
-**Решение:**
-- Использовать уже смонтированную точку
-- Или настроить passwordless sudo для mount.cifs
-- Или использовать fstab для автоматического монтирования
-
----
-
-## 📚 Дополнительная документация
-
-- `USER_PERMISSIONS.md` - Требования к правам PostgreSQL пользователя
-- `UBUNTU_18_04_SETUP.md` - Установка на Ubuntu 18.04
-- `README.md` - Общая документация проекта
+**Solution:**
+- Use already mounted share
+- Or configure passwordless sudo for mount.cifs
+- Or use fstab for automatic mounting
 
 ---
 
-**Автор:** Documentation by AI Assistant  
-**Дата:** 2025-11-02  
-**Версия:** 1.0
+## 📚 Additional Documentation
 
+- `USER_PERMISSIONS.md` - PostgreSQL user permissions requirements
+- `UBUNTU_18_04_SETUP.md` - Ubuntu 18.04 setup instructions
+- `README.md` - General project documentation
+
+---
+
+**Author:** Documentation by AI Assistant  
+**Date:** 2025-11-02  
+**Version:** 1.0
