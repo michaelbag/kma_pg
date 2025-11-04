@@ -1,14 +1,22 @@
 #!/bin/bash
 # PostgreSQL Backup Manager - Linux Project Initialization Script
-# Version: 1.0.1
+# Version: 1.0.2
 # Author: Michael BAG <mk@remark.pro>
 # Supported: Ubuntu Server 18.04, 20.04, and other Linux distributions
+#
+# This script can be run by administrator to setup the project.
+# The project will be configured to run under a regular user (without sudo).
+# The administrator can specify the runtime user during setup.
 
 set -e  # Exit on any error
 
+# Global variables
+PROJECT_USER=""  # User who will run the project (without sudo)
+PROJECT_DIR="$(pwd)"  # Current directory
+
 echo "========================================"
 echo "PostgreSQL Backup Manager - Linux Setup"
-echo "Version: 1.0.1"
+echo "Version: 1.0.2"
 echo "Author: Michael BAG <mk@remark.pro>"
 echo "========================================"
 echo ""
@@ -26,26 +34,66 @@ detect_os() {
     echo "Detected OS: $OS $VER"
 }
 
-# Check if running as root
-check_root() {
-    if [ "$EUID" -eq 0 ]; then
-        echo "WARNING: Running as root is not recommended for security reasons"
+# Select project user (who will run the project without sudo)
+select_project_user() {
+    echo ""
+    echo "[User Selection] Selecting user for project runtime..."
+    echo ""
+    echo "This script will setup the project so it can run under a regular user"
+    echo "without sudo privileges. The administrator will install system dependencies."
+    echo ""
+    
+    read -p "Enter username who will run the project [$(whoami)]: " username
+    username=${username:-$(whoami)}
+    
+    # Check if user exists
+    if ! id -u "$username" >/dev/null 2>&1; then
         echo ""
-        echo "Recommended approach:"
-        echo "  1. Install Python 3.8 from root (if needed):"
-        echo "     sudo apt update && sudo apt install -y python3.8 python3.8-venv python3.8-dev"
-        echo "  2. Run this script as regular user:"
-        echo "     ./init_project.sh"
-        echo ""
-        echo "The script will use sudo for system package installation when needed."
-        echo ""
-        read -p "Continue running as root anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "ERROR: User '$username' does not exist"
+        echo "Please create the user first or enter an existing username"
+        read -p "Enter username: " username
+        if ! id -u "$username" >/dev/null 2>&1; then
+            echo "ERROR: User '$username' still does not exist. Exiting."
             exit 1
         fi
-        echo "Continuing as root..."
-        echo ""
+    fi
+    
+    PROJECT_USER="$username"
+    echo "✓ Project will run under user: $PROJECT_USER"
+    echo ""
+}
+
+# Ensure project user owns the project files
+ensure_project_ownership() {
+    echo ""
+    echo "[Ownership] Setting ownership of project files to '$PROJECT_USER'..."
+    
+    if [ -z "$PROJECT_USER" ]; then
+        echo "WARNING: PROJECT_USER not set, skipping ownership change"
+        return
+    fi
+    
+    # Check if we need sudo to change ownership
+    CURRENT_USER=$(whoami)
+    if [ "$CURRENT_USER" != "$PROJECT_USER" ]; then
+        if [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+            echo "WARNING: Cannot change ownership without sudo privileges"
+            echo "You may need to run: sudo chown -R $PROJECT_USER:$PROJECT_USER $PROJECT_DIR"
+            return
+        fi
+        
+        # Use sudo if not root
+        if [ "$EUID" -ne 0 ]; then
+            SUDO_CMD="sudo"
+        else
+            SUDO_CMD=""
+        fi
+        
+        echo "Changing ownership of $PROJECT_DIR to $PROJECT_USER..."
+        $SUDO_CMD chown -R "$PROJECT_USER":"$PROJECT_USER" "$PROJECT_DIR"
+        echo "✓ Ownership changed to $PROJECT_USER"
+    else
+        echo "Current user is $PROJECT_USER, ownership is correct"
     fi
 }
 
@@ -373,22 +421,37 @@ install_deps() {
     echo ""
     echo "[5/7] Installing Python dependencies..."
     
-    # Upgrade pip
-    python -m pip install --upgrade pip
-    if [ $? -ne 0 ]; then
-        echo "WARNING: Failed to upgrade pip, continuing..."
+    # If PROJECT_USER is set and different from current user, install as that user
+    if [ -n "$PROJECT_USER" ] && [ "$(whoami)" != "$PROJECT_USER" ]; then
+        # Install as project user
+        echo "Installing dependencies for user $PROJECT_USER..."
+        sudo -u "$PROJECT_USER" bash -lc "cd $PROJECT_DIR && source venv/bin/activate && python -m pip install --upgrade pip" 2>/dev/null || true
+        sudo -u "$PROJECT_USER" bash -lc "cd $PROJECT_DIR && source venv/bin/activate && pip install -r requirements.txt"
+        if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to install dependencies for $PROJECT_USER"
+            echo "Please check requirements.txt and try again"
+            exit 1
+        fi
+        echo "✓ Dependencies installed for $PROJECT_USER"
     else
-        echo "✓ Pip upgraded"
+        # Install as current user
+        # Upgrade pip
+        python -m pip install --upgrade pip
+        if [ $? -ne 0 ]; then
+            echo "WARNING: Failed to upgrade pip, continuing..."
+        else
+            echo "✓ Pip upgraded"
+        fi
+        
+        # Install requirements
+        pip install -r requirements.txt
+        if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to install dependencies"
+            echo "Please check requirements.txt and try again"
+            exit 1
+        fi
+        echo "✓ Dependencies installed"
     fi
-    
-    # Install requirements
-    pip install -r requirements.txt
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to install dependencies"
-        echo "Please check requirements.txt and try again"
-        exit 1
-    fi
-    echo "✓ Dependencies installed"
 }
 
 # Create project directories
@@ -397,6 +460,18 @@ create_dirs() {
     echo "[6/7] Creating project directories..."
     
     mkdir -p logs backups config/databases
+    
+    # Set ownership if PROJECT_USER is set and different from current user
+    if [ -n "$PROJECT_USER" ] && [ "$(whoami)" != "$PROJECT_USER" ]; then
+        if [ "$EUID" -eq 0 ] || sudo -n true 2>/dev/null; then
+            SUDO_CMD=""
+            if [ "$EUID" -ne 0 ]; then
+                SUDO_CMD="sudo"
+            fi
+            $SUDO_CMD chown -R "$PROJECT_USER":"$PROJECT_USER" logs backups config 2>/dev/null || true
+        fi
+    fi
+    
     echo "✓ Project directories created"
 }
 
@@ -413,38 +488,67 @@ setup_permissions() {
     chmod +x scripts/backup_cron.sh
     echo "✓ Scripts made executable"
     
-    # Test installation
+    # Test installation as project user if specified
     echo "Testing installation..."
-    python -c "import psycopg2, yaml, requests; print('✓ All dependencies imported successfully')" 2>/dev/null
-    if [ $? -ne 0 ]; then
-        echo "WARNING: Some dependencies may not be working correctly"
-        echo "Please check the installation"
+    if [ -n "$PROJECT_USER" ] && [ "$(whoami)" != "$PROJECT_USER" ]; then
+        # Test as project user
+        if sudo -u "$PROJECT_USER" bash -lc "source $PROJECT_DIR/venv/bin/activate && python -c 'import psycopg2, yaml, requests; print(\"✓ All dependencies imported successfully\")'" 2>/dev/null; then
+            echo "✓ All dependencies imported successfully (tested as $PROJECT_USER)"
+        else
+            echo "WARNING: Some dependencies may not be working correctly for $PROJECT_USER"
+            echo "Please check the installation"
+        fi
+        
+        # Test scripts as project user
+        echo "Testing backup script..."
+        if sudo -u "$PROJECT_USER" bash -lc "source $PROJECT_DIR/venv/bin/activate && python $PROJECT_DIR/src/kma_pg_backup.py --version" >/dev/null 2>&1; then
+            echo "✓ Backup script is working (tested as $PROJECT_USER)"
+        else
+            echo "WARNING: Backup script test failed for $PROJECT_USER"
+        fi
+        
+        echo "Testing restore script..."
+        if sudo -u "$PROJECT_USER" bash -lc "source $PROJECT_DIR/venv/bin/activate && python $PROJECT_DIR/src/kma_pg_restore.py --version" >/dev/null 2>&1; then
+            echo "✓ Restore script is working (tested as $PROJECT_USER)"
+        else
+            echo "WARNING: Restore script test failed for $PROJECT_USER"
+        fi
     else
-        echo "✓ All dependencies imported successfully"
-    fi
-    
-    # Test scripts
-    echo "Testing backup script..."
-    python src/kma_pg_backup.py --version >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        echo "WARNING: Backup script test failed"
-    else
-        echo "✓ Backup script is working"
-    fi
-    
-    echo "Testing restore script..."
-    python src/kma_pg_restore.py --version >/dev/null 2>&1
-    if [ $? -ne 0 ]; then
-        echo "WARNING: Restore script test failed"
-    else
-        echo "✓ Restore script is working"
+        # Test as current user
+        python -c "import psycopg2, yaml, requests; print('✓ All dependencies imported successfully')" 2>/dev/null
+        if [ $? -ne 0 ]; then
+            echo "WARNING: Some dependencies may not be working correctly"
+            echo "Please check the installation"
+        else
+            echo "✓ All dependencies imported successfully"
+        fi
+        
+        # Test scripts
+        echo "Testing backup script..."
+        python src/kma_pg_backup.py --version >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo "WARNING: Backup script test failed"
+        else
+            echo "✓ Backup script is working"
+        fi
+        
+        echo "Testing restore script..."
+        python src/kma_pg_restore.py --version >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo "WARNING: Restore script test failed"
+        else
+            echo "✓ Restore script is working"
+        fi
     fi
 }
 
 # Main execution
 main() {
     detect_os
-    check_root
+    
+    # Select project user (who will run without sudo)
+    select_project_user
+    
     check_requirements
     
     # Ask if user wants to install system dependencies
@@ -462,6 +566,10 @@ main() {
     activate_venv
     install_deps
     create_dirs
+    
+    # Ensure project ownership before setting permissions
+    ensure_project_ownership
+    
     setup_permissions
     
     echo ""
@@ -469,18 +577,40 @@ main() {
     echo "Setup completed successfully!"
     echo "========================================"
     echo ""
-    echo "Next steps:"
-    echo "1. Configure your database settings:"
-    echo "   python src/kma_pg_config_setup.py"
-    echo ""
-    echo "2. Test database connection:"
-    echo "   python src/kma_pg_backup.py --test-connection"
-    echo ""
-    echo "3. Create your first backup:"
-    echo "   python src/kma_pg_backup.py"
-    echo ""
-    echo "To activate virtual environment in the future:"
-    echo "   source venv/bin/activate"
+    
+    if [ -n "$PROJECT_USER" ] && [ "$(whoami)" != "$PROJECT_USER" ]; then
+        echo "Project setup for user: $PROJECT_USER"
+        echo ""
+        echo "To switch to project user:"
+        echo "   sudo su - $PROJECT_USER"
+        echo "   cd $PROJECT_DIR"
+        echo ""
+        echo "Next steps (as user $PROJECT_USER):"
+        echo "1. Activate virtual environment:"
+        echo "   source venv/bin/activate"
+        echo ""
+        echo "2. Configure your database settings:"
+        echo "   python src/kma_pg_config_setup.py"
+        echo ""
+        echo "3. Test database connection:"
+        echo "   python src/kma_pg_backup.py --test-connection"
+        echo ""
+        echo "4. Create your first backup:"
+        echo "   python src/kma_pg_backup.py"
+    else
+        echo "Next steps:"
+        echo "1. Configure your database settings:"
+        echo "   python src/kma_pg_config_setup.py"
+        echo ""
+        echo "2. Test database connection:"
+        echo "   python src/kma_pg_backup.py --test-connection"
+        echo ""
+        echo "3. Create your first backup:"
+        echo "   python src/kma_pg_backup.py"
+        echo ""
+        echo "To activate virtual environment in the future:"
+        echo "   source venv/bin/activate"
+    fi
     echo ""
     echo "For Ubuntu Server setup guide, see README.md"
     echo ""
