@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostgreSQL Backup Manager - Linux Project Initialization Script
-# Version: 1.0.0
+# Version: 1.0.1
 # Author: Michael BAG <mk@remark.pro>
 # Supported: Ubuntu Server 18.04, 20.04, and other Linux distributions
 
@@ -8,7 +8,7 @@ set -e  # Exit on any error
 
 echo "========================================"
 echo "PostgreSQL Backup Manager - Linux Setup"
-echo "Version: 1.0.0"
+echo "Version: 1.0.1"
 echo "Author: Michael BAG <mk@remark.pro>"
 echo "========================================"
 echo ""
@@ -53,35 +53,70 @@ check_requirements() {
     fi
     
     PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+    PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
+    PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
+    
     echo "✓ Python 3 is installed: $(python3 --version)"
     
     # Check if Python version is 3.7 or later
     if ! python3 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+        echo "WARNING: Python 3.7 or later is required (found $PYTHON_VERSION)"
+        
+        # For Ubuntu 18.04, try to install Python 3.8
+        if [[ "$OS" == *"Ubuntu"* ]] && [[ "$VER" == "18.04" ]]; then
+            echo ""
+            echo "Detected Ubuntu 18.04 - attempting to install Python 3.8..."
+            echo "This will install Python 3.8 from deadsnakes PPA"
+            read -p "Install Python 3.8? (Y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                install_python38_ubuntu
+                # Check again after installation
+                if command -v python3.8 &> /dev/null; then
+                    if python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+                        echo "✓ Python 3.8 installed successfully"
+                        # Use python3.8 as default for this session
+                        alias python3=python3.8
+                        return 0
+                    fi
+                fi
+            fi
+        fi
+        
         echo "ERROR: Python 3.7 or later is required (found $PYTHON_VERSION)"
-        exit 1
-    fi
-    
-    # Check PostgreSQL client utilities
-    if ! command -v pg_dump &> /dev/null; then
-        echo "WARNING: PostgreSQL client utilities not found"
-        echo "Please install PostgreSQL client:"
-        echo "  Ubuntu/Debian: sudo apt install postgresql-client"
-        echo "  CentOS/RHEL: sudo yum install postgresql"
         echo ""
-        echo "Continuing with setup anyway..."
-    else
-        echo "✓ PostgreSQL client utilities are available: $(pg_dump --version)"
-    fi
-    
-    # Check pip
-    if ! command -v pip3 &> /dev/null; then
-        echo "ERROR: pip3 is not installed"
-        echo "Please install pip:"
-        echo "  Ubuntu/Debian: sudo apt install python3-pip"
-        echo "  CentOS/RHEL: sudo yum install python3-pip"
+        echo "Please install Python 3.7 or later manually:"
+        echo "  Ubuntu 18.04: sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt install python3.8 python3.8-venv python3.8-dev"
+        echo "  Ubuntu 20.04+: sudo apt install python3.8 python3.8-venv"
         exit 1
     fi
-    echo "✓ pip3 is available"
+}
+
+# Install Python 3.8 on Ubuntu 18.04
+install_python38_ubuntu() {
+    echo "Installing Python 3.8 for Ubuntu 18.04..."
+    
+    # Add deadsnakes PPA
+    sudo apt update
+    sudo apt install -y software-properties-common
+    sudo add-apt-repository -y ppa:deadsnakes/ppa
+    
+    # Update package list
+    sudo apt update
+    
+    # Install Python 3.8 and required packages
+    sudo apt install -y \
+        python3.8 \
+        python3.8-venv \
+        python3.8-dev \
+        python3.8-distutils
+    
+    # Install pip for Python 3.8
+    if ! python3.8 -c "import pip" 2>/dev/null; then
+        curl -sS https://bootstrap.pypa.io/get-pip.py | python3.8
+    fi
+    
+    echo "✓ Python 3.8 installation completed"
 }
 
 # Install system dependencies for Ubuntu
@@ -96,6 +131,18 @@ install_system_deps() {
         echo "Updating package list..."
         sudo apt update
         
+        # Determine Python version to use
+        PYTHON_BIN="python3"
+        if [[ "$VER" == "18.04" ]] && command -v python3.8 &> /dev/null; then
+            PYTHON_BIN="python3.8"
+            echo "Using Python 3.8 for Ubuntu 18.04"
+        elif [[ "$VER" == "18.04" ]] && ! python3 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+            # Python 3.6 detected, need to install 3.8
+            echo "Python 3.6 detected, installing Python 3.8..."
+            install_python38_ubuntu
+            PYTHON_BIN="python3.8"
+        fi
+        
         # Install required packages
         echo "Installing required packages..."
         sudo apt install -y \
@@ -105,6 +152,13 @@ install_system_deps() {
             build-essential \
             libpq-dev \
             python3-dev
+        
+        # For Ubuntu 18.04 with Python 3.8, install additional packages
+        if [[ "$VER" == "18.04" ]] && [[ "$PYTHON_BIN" == "python3.8" ]]; then
+            sudo apt install -y \
+                python3.8-venv \
+                python3.8-dev
+        fi
         
         echo "✓ System dependencies installed"
     elif [[ "$OS" == *"CentOS"* ]] || [[ "$OS" == *"Red Hat"* ]]; then
@@ -137,6 +191,15 @@ install_system_deps() {
             exit 1
         fi
     fi
+    
+    # Set PYTHON_BIN for use in create_venv
+    if [ -z "$PYTHON_BIN" ]; then
+        if command -v python3.8 &> /dev/null && python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+            PYTHON_BIN="python3.8"
+        else
+            PYTHON_BIN="python3"
+        fi
+    fi
 }
 
 # Create virtual environment
@@ -149,12 +212,21 @@ create_venv() {
         rm -rf venv
     fi
     
-    python3 -m venv venv
+    # Use appropriate Python version
+    if [ -z "$PYTHON_BIN" ]; then
+        if command -v python3.8 &> /dev/null && python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+            PYTHON_BIN="python3.8"
+        else
+            PYTHON_BIN="python3"
+        fi
+    fi
+    
+    $PYTHON_BIN -m venv venv
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to create virtual environment"
         exit 1
     fi
-    echo "✓ Virtual environment created"
+    echo "✓ Virtual environment created using $PYTHON_BIN"
 }
 
 # Activate virtual environment
