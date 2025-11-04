@@ -105,6 +105,8 @@ pip install -r requirements.txt
 ```
 
 #### Linux (Ubuntu Server) Installation
+
+**Option 1: Standard Installation (single user)**
 ```bash
 # Install system dependencies
 sudo apt update
@@ -120,6 +122,38 @@ pip install -r requirements.txt
 # Run initialization
 ./init_ubuntu_server.sh
 ```
+
+**Option 2: Administrator/Worker User Separation (Recommended for Production)**
+
+This setup allows an administrator to initialize the project, while a regular user (without sudo) runs backup operations:
+
+```bash
+# As administrator (with sudo):
+# 1. Clone repository
+sudo git clone <repository-url> /opt/kma_pg
+cd /opt/kma_pg
+
+# 2. Run initialization script
+sudo ./init_project.sh
+
+# The script will:
+# - Ask for the worker user name (e.g., kma_pg)
+# - Install system dependencies
+# - Create virtual environment
+# - Transfer ownership to worker user
+# - Test installation as worker user
+
+# 3. Switch to worker user
+sudo su - kma_pg
+cd /opt/kma_pg
+source venv/bin/activate
+
+# 4. Configure and run backups
+python src/kma_pg_config_setup.py
+python src/kma_pg_backup.py --test-connection
+```
+
+**See [DEPLOYMENT_ADMIN_USER.md](DEPLOYMENT_ADMIN_USER.md) for detailed deployment guide with administrator/worker user separation.**
 
 #### Windows Installation
 ```cmd
@@ -156,6 +190,19 @@ init_project_windows.bat
 # Run the Ubuntu Server specific script
 ./init_ubuntu_server.sh
 ```
+
+**For Production Deployment with Administrator/Worker User Separation:**
+```bash
+# Run as administrator (with sudo)
+sudo ./init_project.sh
+
+# The script will prompt for:
+# - Worker user name (who will run backups without sudo)
+# - System dependencies installation
+# - All files will be owned by the worker user
+```
+
+**See [DEPLOYMENT_ADMIN_USER.md](DEPLOYMENT_ADMIN_USER.md) for detailed instructions.**
 
 ### Manual Setup
 
@@ -801,16 +848,21 @@ kma_pg/
 │       ├── example_development.yaml # Example development database config
 │       └── example_analytics.yaml # Example analytics database config
 ├── scripts/
-│   └── backup_cron.sh       # Linux/macOS cron script
+│   ├── backup_cron.sh       # Linux/macOS cron script
+│   ├── grant_minimal_backup_permissions.sql  # Minimal backup permissions
+│   ├── grant_minimal_restore_permissions.sql # Minimal restore permissions
+│   └── grant_create_database_permissions.sql # Database creation permissions
 ├── logs/                    # Logs
 ├── backups/                 # Backups
 ├── venv/                    # Virtual environment
-├── init_project.sh          # Linux/macOS initialization script
+├── init_project.sh          # Linux/macOS initialization script (supports admin/worker separation)
 ├── init_ubuntu_server.sh    # Ubuntu Server 18.04/20.04 setup script
 ├── init_project_windows.bat # Windows batch initialization script
 ├── init_project_windows.ps1 # Windows PowerShell initialization script
 ├── quick_start_windows.bat  # Windows quick start menu
 ├── WINDOWS_SETUP.md         # Detailed Windows setup guide
+├── DEPLOYMENT_ADMIN_USER.md # Administrator/worker user deployment guide
+├── USER_PERMISSIONS.md       # PostgreSQL user permissions guide
 └── requirements.txt         # Python dependencies
 ```
 
@@ -925,6 +977,47 @@ py src\kma_pg_backup.py
 # Direct activation without path
 venv\Scripts\activate.bat
 ```
+
+## Deployment Scenarios
+
+### Standard Deployment (Single User)
+
+For development or single-user environments, you can run everything as one user:
+
+```bash
+./init_project.sh
+source venv/bin/activate
+python src/kma_pg_config_setup.py
+python src/kma_pg_backup.py
+```
+
+### Production Deployment (Administrator/Worker Separation)
+
+For production environments, it's recommended to separate administrator and worker roles:
+
+- **Administrator**: Has sudo rights, performs initial setup
+- **Worker User**: No sudo rights, runs backup operations
+
+**Benefits:**
+- ✅ Enhanced security (principle of least privilege)
+- ✅ Worker user cannot install system packages
+- ✅ Clear separation of responsibilities
+- ✅ Easier to audit and manage
+
+**Quick Start:**
+```bash
+# As administrator
+sudo ./init_project.sh
+# Enter worker user name when prompted
+
+# As worker user
+sudo su - kma_pg
+cd /opt/kma_pg
+source venv/bin/activate
+python src/kma_pg_backup.py
+```
+
+**See [DEPLOYMENT_ADMIN_USER.md](DEPLOYMENT_ADMIN_USER.md) for complete deployment guide.**
 
 ## Troubleshooting
 
