@@ -491,16 +491,80 @@ install_deps() {
         " 2>/dev/null || true
         
         # Install requirements as project user
+        # First upgrade pip, setuptools, wheel
+        sudo -u "$PROJECT_USER" bash -c "
+            cd $PROJECT_DIR
+            export HOME='$USER_HOME'
+            export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
+            source venv/bin/activate
+            pip install --upgrade pip setuptools wheel
+        " 2>/dev/null || true
+        
+        # Try to install psycopg2-binary first (prefer binary wheels)
+        echo "Installing psycopg2-binary..."
         if sudo -u "$PROJECT_USER" bash -c "
             cd $PROJECT_DIR
             export HOME='$USER_HOME'
             export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
             source venv/bin/activate
-            pip install --no-cache-dir -r requirements.txt
-        "; then
-            echo "✓ Dependencies installed for $PROJECT_USER"
+            pip install --only-binary :all: --no-cache-dir psycopg2-binary>=2.9.9
+        " 2>&1 | grep -q "Successfully installed\|Requirement already satisfied"; then
+            echo "✓ psycopg2-binary installed (binary package)"
         else
-            echo "ERROR: Failed to install dependencies for $PROJECT_USER"
+            echo "WARNING: Failed to install psycopg2-binary as binary package"
+            echo "Attempting to install from source (requires libpq-dev)..."
+            
+            # Check if libpq-dev is available
+            if ! dpkg -l | grep -q "^ii.*libpq-dev"; then
+                echo ""
+                echo "ERROR: libpq-dev is not installed, but required for psycopg2-binary compilation"
+                echo ""
+                echo "Solutions:"
+                echo "1. Install libpq-dev (may require fixing dependencies first):"
+                echo "   sudo apt --fix-broken install"
+                echo "   sudo apt install -y libpq-dev"
+                echo ""
+                echo "2. Or install PostgreSQL 11 compatible version:"
+                echo "   sudo apt install -y postgresql-client-11 libpq-dev"
+                echo ""
+                echo "3. After installing libpq-dev, run this command manually:"
+                echo "   sudo -u $PROJECT_USER bash -c 'cd $PROJECT_DIR && source venv/bin/activate && pip install -r requirements.txt'"
+                echo ""
+                read -p "Continue anyway and try to install other dependencies? (y/N): " -n 1 -r
+                echo
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                    exit 1
+                fi
+            fi
+            
+            # Try to install from source
+            if sudo -u "$PROJECT_USER" bash -c "
+                cd $PROJECT_DIR
+                export HOME='$USER_HOME'
+                export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
+                source venv/bin/activate
+                pip install --no-cache-dir psycopg2-binary>=2.9.9
+            "; then
+                echo "✓ psycopg2-binary installed from source"
+            else
+                echo "ERROR: Failed to install psycopg2-binary even from source"
+                echo "Please install libpq-dev and try again"
+                exit 1
+            fi
+        fi
+        
+        # Install remaining dependencies
+        echo "Installing remaining dependencies..."
+        if sudo -u "$PROJECT_USER" bash -c "
+            cd $PROJECT_DIR
+            export HOME='$USER_HOME'
+            export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
+            source venv/bin/activate
+            pip install --no-cache-dir PyYAML==6.0.1 requests==2.31.0 webdavclient3==3.14.6
+        "; then
+            echo "✓ All dependencies installed for $PROJECT_USER"
+        else
+            echo "ERROR: Failed to install remaining dependencies for $PROJECT_USER"
             echo "Please check requirements.txt and try again"
             exit 1
         fi
