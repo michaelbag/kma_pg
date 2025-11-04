@@ -67,18 +67,37 @@ check_requirements() {
             echo ""
             echo "Detected Ubuntu 18.04 - attempting to install Python 3.8..."
             echo "This will install Python 3.8 from deadsnakes PPA"
-            read -p "Install Python 3.8? (Y/n): " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-                install_python38_ubuntu
-                # Check again after installation
-                if command -v python3.8 &> /dev/null; then
-                    if python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
-                        echo "✓ Python 3.8 installed successfully"
-                        # Use python3.8 as default for this session
-                        alias python3=python3.8
-                        return 0
+            
+            # Check if we're in an interactive terminal
+            if [ -t 0 ]; then
+                read -p "Install Python 3.8? (Y/n): " -n 1 -r
+                echo
+                INSTALL_PYTHON38=$REPLY
+            else
+                # Non-interactive mode - check if sudo is available without password
+                if sudo -n true 2>/dev/null || [ "$EUID" -eq 0 ]; then
+                    echo "Non-interactive mode detected. Installing Python 3.8 automatically..."
+                    INSTALL_PYTHON38="Y"
+                else
+                    echo "Non-interactive mode and no passwordless sudo. Skipping automatic installation."
+                    INSTALL_PYTHON38="N"
+                fi
+            fi
+            
+            if [[ ! $INSTALL_PYTHON38 =~ ^[Nn]$ ]]; then
+                if install_python38_ubuntu; then
+                    # Check again after installation
+                    if command -v python3.8 &> /dev/null; then
+                        if python3.8 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
+                            echo "✓ Python 3.8 installed successfully"
+                            PYTHON_BIN="python3.8"
+                            return 0
+                        fi
                     fi
+                else
+                    echo ""
+                    echo "Failed to install Python 3.8 automatically"
+                    echo "Please install it manually and run this script again"
                 fi
             fi
         fi
@@ -96,27 +115,53 @@ check_requirements() {
 install_python38_ubuntu() {
     echo "Installing Python 3.8 for Ubuntu 18.04..."
     
-    # Add deadsnakes PPA
-    sudo apt update
-    sudo apt install -y software-properties-common
-    sudo add-apt-repository -y ppa:deadsnakes/ppa
+    # Check if we're root or can use sudo without password
+    if [ "$EUID" -eq 0 ]; then
+        # Running as root, no sudo needed
+        SUDO_CMD=""
+    elif sudo -n true 2>/dev/null; then
+        # Can use sudo without password
+        SUDO_CMD="sudo"
+    else
+        # Cannot use sudo without password
+        echo ""
+        echo "ERROR: This operation requires sudo privileges, but sudo requires a password"
+        echo ""
+        echo "Please install Python 3.8 manually as root:"
+        echo "  sudo apt update"
+        echo "  sudo apt install -y software-properties-common"
+        echo "  sudo add-apt-repository -y ppa:deadsnakes/ppa"
+        echo "  sudo apt update"
+        echo "  sudo apt install -y python3.8 python3.8-venv python3.8-dev python3.8-distutils"
+        echo "  curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.8"
+        echo ""
+        echo "Or configure passwordless sudo for this user, then run the script again"
+        echo ""
+        return 1
+    fi
+    
+    # Add deadsnakes PPA (non-interactive)
+    $SUDO_CMD apt update || return 1
+    $SUDO_CMD apt install -y software-properties-common || return 1
+    $SUDO_CMD DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:deadsnakes/ppa || return 1
     
     # Update package list
-    sudo apt update
+    $SUDO_CMD apt update || return 1
     
     # Install Python 3.8 and required packages
-    sudo apt install -y \
+    $SUDO_CMD apt install -y \
         python3.8 \
         python3.8-venv \
         python3.8-dev \
-        python3.8-distutils
+        python3.8-distutils || return 1
     
     # Install pip for Python 3.8
     if ! python3.8 -c "import pip" 2>/dev/null; then
-        curl -sS https://bootstrap.pypa.io/get-pip.py | python3.8
+        curl -sS https://bootstrap.pypa.io/get-pip.py | $SUDO_CMD python3.8 || return 1
     fi
     
     echo "✓ Python 3.8 installation completed"
+    return 0
 }
 
 # Install system dependencies for Ubuntu
@@ -124,12 +169,18 @@ install_system_deps() {
     echo ""
     echo "[2/7] Installing system dependencies..."
     
+    # Determine sudo command
+    SUDO_CMD=""
+    if [ "$EUID" -ne 0 ]; then
+        SUDO_CMD="sudo"
+    fi
+    
     if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
         echo "Detected Ubuntu/Debian system"
         
         # Update package list
         echo "Updating package list..."
-        sudo apt update
+        $SUDO_CMD apt update
         
         # Determine Python version to use
         PYTHON_BIN="python3"
@@ -138,14 +189,19 @@ install_system_deps() {
             echo "Using Python 3.8 for Ubuntu 18.04"
         elif [[ "$VER" == "18.04" ]] && ! python3 -c "import sys; exit(0 if sys.version_info >= (3, 7) else 1)" 2>/dev/null; then
             # Python 3.6 detected, need to install 3.8
-            echo "Python 3.6 detected, installing Python 3.8..."
-            install_python38_ubuntu
-            PYTHON_BIN="python3.8"
+            if command -v python3.8 &> /dev/null; then
+                PYTHON_BIN="python3.8"
+                echo "Python 3.8 already installed, using it"
+            else
+                echo "Python 3.6 detected, but Python 3.8 is not installed"
+                echo "Please run the script again after installing Python 3.8 manually"
+                echo "Or answer 'Y' when prompted to install Python 3.8"
+            fi
         fi
         
         # Install required packages
         echo "Installing required packages..."
-        sudo apt install -y \
+        $SUDO_CMD apt install -y \
             python3-venv \
             python3-pip \
             postgresql-client \
@@ -155,7 +211,7 @@ install_system_deps() {
         
         # For Ubuntu 18.04 with Python 3.8, install additional packages
         if [[ "$VER" == "18.04" ]] && [[ "$PYTHON_BIN" == "python3.8" ]]; then
-            sudo apt install -y \
+            $SUDO_CMD apt install -y \
                 python3.8-venv \
                 python3.8-dev
         fi
@@ -166,7 +222,7 @@ install_system_deps() {
         
         # Install required packages
         echo "Installing required packages..."
-        sudo yum install -y \
+        $SUDO_CMD yum install -y \
             python3 \
             python3-pip \
             python3-venv \
