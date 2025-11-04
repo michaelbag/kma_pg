@@ -1090,6 +1090,26 @@ If you get errors like "pg_dump: command not found" or "pg_restore: command not 
 - **"Permission denied"** → Check file permissions for backup directory
 - **"Remote storage connection failed"** → Verify remote storage configuration
 
+## Additional Documentation
+
+### Setup and Deployment Guides
+- **[DEPLOYMENT_ADMIN_USER.md](DEPLOYMENT_ADMIN_USER.md)** - Detailed guide for deployment with administrator/worker user separation (recommended for production)
+- **[WINDOWS_SETUP.md](WINDOWS_SETUP.md)** - Complete Windows setup guide
+- **[UBUNTU_18_04_SETUP.md](UBUNTU_18_04_SETUP.md)** - Ubuntu Server 18.04 specific setup instructions
+- **[CONFIG_BUILDER.md](CONFIG_BUILDER.md)** - Interactive configuration builder guide
+
+### Security and Permissions
+- **[USER_PERMISSIONS.md](USER_PERMISSIONS.md)** - Minimal PostgreSQL user permissions for backup and restore operations
+- **[SECURITY.md](SECURITY.md)** - Security best practices
+
+### Remote Storage
+- **[REMOTE_STORAGE.md](REMOTE_STORAGE.md)** - Remote storage configuration guide (FTP, WebDAV, CIFS/Samba)
+
+### Versioning and Development
+- **[VERSIONING.md](VERSIONING.md)** - Version management system documentation
+- **[STATUS.md](STATUS.md)** - Development status and roadmap
+- **[CHANGELOG.md](CHANGELOG.md)** - Project changelog
+
 ## License
 
 This project is licensed under the GNU General Public License (GPL) v3.0.
