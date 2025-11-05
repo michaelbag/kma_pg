@@ -97,6 +97,26 @@ class ConfigSetup:
             except ValueError:
                 print("Please enter a valid number.")
     
+    def get_backup_format_input(self, prompt: str, default: str = "custom") -> str:
+        """Get backup format input with short form support (c for custom, p for plain)"""
+        while True:
+            value = input(f"{prompt} [{default}]: ").strip().lower()
+            
+            if not value:
+                # User pressed Enter, use default value
+                return default
+            
+            # Handle short forms
+            if value == 'c':
+                return 'custom'
+            elif value == 'p':
+                return 'plain'
+            # Handle full forms
+            elif value in ['custom', 'plain']:
+                return value
+            else:
+                print("Please enter 'custom' or 'plain' (or 'c' for custom, 'p' for plain).")
+    
     def setup_database_config(self) -> Dict[str, Any]:
         """Setup database configuration"""
         print("\n=== Database Configuration ===")
@@ -242,7 +262,7 @@ class ConfigSetup:
         if use_custom_backup:
             backup_config = {
                 'output_dir': self.get_input("Backup output directory", "backups"),
-                'format': self.get_input("Backup format (custom/plain)", "custom"),
+                'format': self.get_backup_format_input("Backup format (custom/plain or c/p)", "custom"),
                 'compress': self.get_boolean_input("Enable compression", True),
                 'retention_days': self.get_number_input("Retention days", 30, 1, 365),
                 'remote_storage': self.setup_remote_storage_config()
@@ -279,7 +299,7 @@ class ConfigSetup:
         
         config = {
             'output_dir': self.get_input("Backup output directory", "backups"),
-            'format': self.get_input("Backup format (custom/plain)", "custom"),
+            'format': self.get_backup_format_input("Backup format (custom/plain or c/p)", "custom"),
             'compress': self.get_boolean_input("Enable compression", True),
             'retention_days': self.get_number_input("Retention days", 30, 1, 365),
             'remote_storage': self.setup_remote_storage_config()
