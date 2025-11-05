@@ -314,32 +314,33 @@ pip install -r requirements.txt
 
 ## Configuration
 
-### Interactive Configuration Builder
+### Interactive Configuration Setup
 
-For easy configuration creation, use the interactive builder that suggests values from existing configurations:
+For easy configuration creation, use the interactive setup wizard that suggests values from existing configurations:
 
 ```bash
-# Run the interactive configuration builder
-python src/kma_pg_config_builder.py
+# Run the interactive configuration setup
+python src/kma_pg_config_setup.py
 ```
 
 **Features:**
 - 🎯 Interactive step-by-step configuration creation
-- 🔍 Value suggestions from existing configurations
+- 🔍 Value suggestions from existing configurations (automatically loaded)
 - 📋 Auto-completion for all major fields
-- 🔒 Secure password input (not saved in suggestions)
-- ✅ Configuration preview before saving
+- 🔒 Secure password input with support for ~/.pgpass
+- ✅ Multi-database configuration support
 - 🎨 User-friendly interface with numbered options
+- 🔐 Proper file ownership and permissions management
 
 **Example workflow:**
-1. Choose database name from existing usernames
-2. Select PostgreSQL host from existing hosts
-3. Pick backup directory from existing paths
-4. Choose retention policy from existing values
+1. Choose database name from existing configurations or enter new
+2. Select PostgreSQL host from existing hosts (if available)
+3. Pick backup directory from existing paths (if available)
+4. Choose retention policy from existing values (if available)
 5. Select remote storage type and settings
-6. Preview and save configuration
+6. Configure multiple databases in one session
 
-See [CONFIG_BUILDER.md](CONFIG_BUILDER.md) for detailed documentation.
+The setup wizard automatically loads existing configurations and provides suggestions for all fields.
 
 ### Version Management System
 
@@ -875,9 +876,8 @@ kma_pg/
 │   ├── kma_pg_backup.py     # Main backup script
 │   ├── kma_pg_storage.py    # Remote storage module
 │   ├── kma_pg_restore.py    # Restore script
-│   ├── kma_pg_config_setup.py # Interactive configuration setup
-│   ├── kma_pg_config_manager.py # Configuration manager
-│   └── kma_pg_config_builder.py # Interactive configuration builder
+│   ├── kma_pg_config_setup.py # Interactive configuration setup (with suggestions)
+│   └── kma_pg_config_manager.py # Configuration manager
 ├── config/
 │   ├── config.example.yaml # Example main configuration
 │   └── databases/          # Example database configurations

@@ -4,9 +4,8 @@
     "kma_pg_backup.py": "1.0.3",
     "kma_pg_restore.py": "1.1.7",
     "kma_pg_storage.py": "1.0.1",
-    "kma_pg_config_setup.py": "1.0.2",
+    "kma_pg_config_setup.py": "1.0.3",
     "kma_pg_config_manager.py": "1.0.0",
-    "kma_pg_config_builder.py": "2.0.0",
     "kma_pg_retention.py": "1.0.0"
   }
 }

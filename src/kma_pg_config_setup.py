@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Backup Manager - Configuration Setup
-Version: 2.0.6/1.0.2
+Version: 2.0.6/1.0.3
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -18,7 +18,7 @@ import pwd
 import grp
 import stat
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 
 from kma_pg_config_manager import DatabaseConfigManager
 
@@ -76,6 +76,10 @@ class ConfigSetup:
             print(f"ℹ Current user: {current_user}, target owner: {self.config_owner}")
             print(f"ℹ If files are already owned by '{self.config_owner}', permissions will be set correctly")
             print(f"ℹ If files are owned by different user, root may be needed to change ownership")
+        
+        # Load existing configurations for suggestions
+        self.existing_configs = self._load_existing_configs()
+        self.suggestions = self._extract_suggestions()
     
     def _set_file_permissions(self, file_path: Path):
         """Set file owner and permissions (read/write for owner only)"""
@@ -197,6 +201,159 @@ class ConfigSetup:
         except Exception as e:
             # Don't fail if we can't set permissions
             print(f"⚠ Warning: Could not set permissions for {dir_path}: {e}")
+    
+    def _load_existing_configs(self) -> List[Dict[str, Any]]:
+        """Load all existing database configurations for suggestions"""
+        configs = []
+        
+        databases_dir = self.config_manager.databases_dir
+        if not databases_dir.exists():
+            return configs
+        
+        for config_file in databases_dir.glob("*.yaml"):
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    config['_filename'] = config_file.stem
+                    configs.append(config)
+            except Exception as e:
+                # Silently skip invalid configs for suggestions
+                continue
+        
+        return configs
+    
+    def _extract_suggestions(self) -> Dict[str, Set[str]]:
+        """Extract unique values from existing configurations for suggestions"""
+        suggestions = {
+            'hosts': set(),
+            'ports': set(),
+            'usernames': set(),
+            'output_dirs': set(),
+            'remote_types': set(),
+            'remote_servers': set(),
+            'remote_usernames': set(),
+            'log_levels': set(),
+            'formats': set(),
+            'retention_daily': set(),
+            'retention_weekly': set(),
+            'retention_monthly': set(),
+            'retention_max_age': set()
+        }
+        
+        for config in self.existing_configs:
+            # Database connection suggestions
+            db_config = config.get('database', {})
+            if db_config.get('host'):
+                suggestions['hosts'].add(db_config['host'])
+            if db_config.get('port'):
+                suggestions['ports'].add(str(db_config['port']))
+            if db_config.get('username'):
+                suggestions['usernames'].add(db_config['username'])
+            
+            # Backup settings suggestions
+            backup_config = config.get('backup', {})
+            if backup_config.get('output_dir'):
+                suggestions['output_dirs'].add(backup_config['output_dir'])
+            if backup_config.get('format'):
+                suggestions['formats'].add(backup_config['format'])
+            
+            # Remote storage suggestions
+            remote_config = backup_config.get('remote_storage', {})
+            if remote_config.get('type'):
+                suggestions['remote_types'].add(remote_config['type'])
+            if remote_config.get('webdav', {}).get('url'):
+                suggestions['remote_servers'].add(remote_config['webdav']['url'])
+            if remote_config.get('cifs', {}).get('server'):
+                suggestions['remote_servers'].add(remote_config['cifs']['server'])
+            if remote_config.get('ftp', {}).get('host'):
+                suggestions['remote_servers'].add(remote_config['ftp']['host'])
+            
+            # Remote usernames
+            for storage_type in ['webdav', 'cifs', 'ftp']:
+                if remote_config.get(storage_type, {}).get('username'):
+                    suggestions['remote_usernames'].add(remote_config[storage_type]['username'])
+            
+            # Logging suggestions
+            log_config = config.get('logging', {})
+            if log_config.get('level'):
+                suggestions['log_levels'].add(log_config['level'])
+            
+            # Retention suggestions
+            retention = backup_config.get('retention', {})
+            for storage_type in ['local', 'remote']:
+                if retention.get(storage_type):
+                    if retention[storage_type].get('daily'):
+                        suggestions['retention_daily'].add(str(retention[storage_type]['daily']))
+                    if retention[storage_type].get('weekly'):
+                        suggestions['retention_weekly'].add(str(retention[storage_type]['weekly']))
+                    if retention[storage_type].get('monthly'):
+                        suggestions['retention_monthly'].add(str(retention[storage_type]['monthly']))
+                    if retention[storage_type].get('max_age'):
+                        suggestions['retention_max_age'].add(str(retention[storage_type]['max_age']))
+        
+        return suggestions
+    
+    def get_input_with_suggestions(self, prompt: str, field_name: str, 
+                                  default: str = None,
+                                  required: bool = True,
+                                  input_type: str = "string") -> Any:
+        """Get user input with suggestions from existing configurations"""
+        suggestions = self.suggestions.get(field_name, set())
+        
+        # If we have suggestions, offer them
+        if suggestions:
+            print(f"\n{prompt}")
+            print("Available options from existing configurations:")
+            sorted_suggestions = sorted(suggestions)
+            for i, suggestion in enumerate(sorted_suggestions, 1):
+                print(f"  {i}. {suggestion}")
+            print(f"  {len(suggestions) + 1}. Enter custom value")
+            if default:
+                print(f"  {len(suggestions) + 2}. Use default [{default}]")
+            
+            while True:
+                try:
+                    choice = input(f"Choose option (1-{len(suggestions) + (2 if default else 1)}): ").strip()
+                    if not choice:
+                        if default:
+                            return self._convert_value(default, input_type)
+                        elif not required:
+                            return None
+                        print("Please enter a valid number")
+                        continue
+                    
+                    choice_num = int(choice)
+                    max_option = len(suggestions) + (2 if default else 1)
+                    
+                    if 1 <= choice_num <= len(suggestions):
+                        selected_value = sorted_suggestions[choice_num - 1]
+                        print(f"Selected: {selected_value}")
+                        return self._convert_value(selected_value, input_type)
+                    elif choice_num == len(suggestions) + 1:
+                        # User wants to enter custom value
+                        break
+                    elif default and choice_num == len(suggestions) + 2:
+                        # User wants to use default
+                        return self._convert_value(default, input_type)
+                    else:
+                        print(f"Please enter a number between 1 and {max_option}")
+                except ValueError:
+                    print("Please enter a valid number")
+                except (EOFError, KeyboardInterrupt):
+                    print("\nOperation cancelled")
+                    return None if not required else default
+        
+        # No suggestions or user chose custom value - use regular input
+        return self.get_input(prompt, default, required)
+    
+    def _convert_value(self, value: str, input_type: str) -> Any:
+        """Convert string input to appropriate type"""
+        if input_type == "int":
+            return int(value)
+        elif input_type == "bool":
+            return value.lower() in ['true', 'yes', 'y', '1', 'on']
+        else:
+            return value
         
     def get_input(self, prompt: str, default: str = None, required: bool = True) -> str:
         """Get user input with default value"""
@@ -505,12 +662,12 @@ class ConfigSetup:
         """Setup configuration for a single database"""
         print(f"\n--- Database Configuration: {database_name} ---")
         
-        # Database connection settings
+        # Database connection settings (with suggestions if available)
         db_config = {
             'name': database_name,
-            'host': self.get_input("PostgreSQL host", "localhost"),
-            'port': self.get_number_input("PostgreSQL port", 5432, 1, 65535),
-            'username': self.get_input("PostgreSQL username", "postgres"),
+            'host': self.get_input_with_suggestions("PostgreSQL host", 'hosts', "localhost", required=True),
+            'port': int(self.get_input_with_suggestions("PostgreSQL port", 'ports', "5432", required=True, input_type="int")),
+            'username': self.get_input_with_suggestions("PostgreSQL username", 'usernames', "postgres", required=True),
             'password': self.get_password_input("PostgreSQL password"),
             'enabled': self.get_boolean_input("Enable backup for this database", True),
             'auto_backup': True
@@ -525,7 +682,7 @@ class ConfigSetup:
         
         if use_custom_backup:
             backup_config = {
-                'output_dir': self.get_input("Backup output directory", "backups"),
+                'output_dir': self.get_input_with_suggestions("Backup output directory", 'output_dirs', "backups", required=True),
                 'format': self.get_backup_format_input("Backup format (custom/plain or c/p)", "custom", show_description=True),
                 'compress': self.get_boolean_input("Enable compression", True),
                 'retention_days': self.get_number_input("Retention days", 30, 1, 365),
@@ -542,7 +699,7 @@ class ConfigSetup:
         
         if use_custom_logging:
             logging_config = {
-                'level': self.get_input("Log level (DEBUG/INFO/WARNING/ERROR)", "INFO"),
+                'level': self.get_input_with_suggestions("Log level (DEBUG/INFO/WARNING/ERROR)", 'log_levels', "INFO", required=True),
                 'file': self.get_input("Log file path", f"logs/backup_{database_name}.log")
             }
         else:
@@ -562,7 +719,7 @@ class ConfigSetup:
         print("\n=== Backup Configuration ===")
         
         config = {
-            'output_dir': self.get_input("Backup output directory", "backups"),
+            'output_dir': self.get_input_with_suggestions("Backup output directory", 'output_dirs', "backups", required=True),
             'format': self.get_backup_format_input("Backup format (custom/plain or c/p)", "custom", show_description=True),
             'compress': self.get_boolean_input("Enable compression", True),
             'retention_days': self.get_number_input("Retention days", 30, 1, 365),
@@ -579,7 +736,7 @@ class ConfigSetup:
         if not enabled:
             return {'enabled': False}
         
-        storage_type = self.get_input("Storage type (webdav/cifs/ftp)", "webdav")
+        storage_type = self.get_input_with_suggestions("Storage type (webdav/cifs/ftp)", 'remote_types', "webdav", required=True)
         
         config = {
             'enabled': True,
@@ -588,24 +745,24 @@ class ConfigSetup:
         
         if storage_type == 'webdav':
             config['webdav'] = {
-                'url': self.get_input("WebDAV URL", "https://your-webdav-server.com/backups"),
-                'username': self.get_input("WebDAV username"),
+                'url': self.get_input_with_suggestions("WebDAV URL", 'remote_servers', "https://your-webdav-server.com/backups", required=True),
+                'username': self.get_input_with_suggestions("WebDAV username", 'remote_usernames', required=True),
                 'password': getpass.getpass("WebDAV password: "),
                 'verify_ssl': self.get_boolean_input("Verify SSL certificate", True)
             }
         elif storage_type == 'cifs':
             config['cifs'] = {
-                'server': self.get_input("CIFS server", "//your-samba-server.com/share"),
-                'username': self.get_input("CIFS username"),
+                'server': self.get_input_with_suggestions("CIFS server", 'remote_servers', "//your-samba-server.com/share", required=True),
+                'username': self.get_input_with_suggestions("CIFS username", 'remote_usernames', required=True),
                 'password': getpass.getpass("CIFS password: "),
                 'mount_point': self.get_input("Mount point", "/mnt/backup_storage"),
                 'auto_mount': self.get_boolean_input("Auto mount", True)
             }
         elif storage_type == 'ftp':
             config['ftp'] = {
-                'host': self.get_input("FTP host", "ftp.your-server.com"),
+                'host': self.get_input_with_suggestions("FTP host", 'remote_servers', "ftp.your-server.com", required=True),
                 'port': self.get_number_input("FTP port", 21, 1, 65535),
-                'username': self.get_input("FTP username"),
+                'username': self.get_input_with_suggestions("FTP username", 'remote_usernames', required=True),
                 'password': getpass.getpass("FTP password: "),
                 'passive': self.get_boolean_input("Passive mode", True),
                 'ssl': self.get_boolean_input("Use SSL/TLS", False)
@@ -618,7 +775,7 @@ class ConfigSetup:
         print("\n=== Logging Configuration ===")
         
         config = {
-            'level': self.get_input("Log level (DEBUG/INFO/WARNING/ERROR)", "INFO"),
+            'level': self.get_input_with_suggestions("Log level (DEBUG/INFO/WARNING/ERROR)", 'log_levels', "INFO", required=True),
             'file': self.get_input("Log file path", "logs/backup.log")
         }
         
