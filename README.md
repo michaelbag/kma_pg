@@ -3,9 +3,9 @@
 [![Development Status](https://img.shields.io/badge/status-in%20development-orange.svg)](https://github.com/michaelbag/kma_pg)
 [![Testing Status](https://img.shields.io/badge/testing-in%20progress-yellow.svg)](https://github.com/michaelbag/kma_pg)
 [![License](https://img.shields.io/badge/license-GPL%20v3.0-blue.svg)](https://github.com/michaelbag/kma_pg/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](https://github.com/michaelbag/kma_pg)
+[![Version](https://img.shields.io/badge/version-2.0.6-green.svg)](https://github.com/michaelbag/kma_pg)
 
-**Version:** 2.0.0  
+**Version:** 2.0.6  
 **Author:** Michael BAG  
 **Email:** mk@remark.pro  
 **Telegram:** https://t.me/michaelbag  

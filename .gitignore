@@ -54,6 +54,7 @@ config/config.yaml
 config/databases/*.yaml
 !config/databases/example_*.yaml
 !config/config.example.yaml
+.project_user
 
 # Temporary files
 *.tmp

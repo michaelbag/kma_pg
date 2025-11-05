@@ -1,5 +1,5 @@
 {
-  "project": "2.0.5",
+  "project": "2.0.6",
   "scripts": {
     "kma_pg_backup.py": "1.0.3",
     "kma_pg_restore.py": "1.1.7",

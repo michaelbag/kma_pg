@@ -59,8 +59,13 @@ select_project_user() {
     fi
     
     PROJECT_USER="$username"
+    export PROJECT_USER  # Export for use in subprocesses
     echo "✓ Project will run under user: $PROJECT_USER"
     echo ""
+    
+    # Save PROJECT_USER to file for use by other scripts
+    echo "$PROJECT_USER" > "$PROJECT_DIR/.project_user"
+    echo "✓ Project user saved to .project_user"
 }
 
 # Ensure project user owns the project files
@@ -741,6 +746,19 @@ main() {
     ensure_project_ownership
     
     setup_permissions
+    
+    # Save PROJECT_USER to file for use by other scripts (if not already saved)
+    if [ -n "$PROJECT_USER" ]; then
+        echo "$PROJECT_USER" > "$PROJECT_DIR/.project_user"
+        chmod 644 "$PROJECT_DIR/.project_user"
+        # Set ownership if different from current user
+        if [ "$(whoami)" != "$PROJECT_USER" ]; then
+            if [ "$EUID" -eq 0 ]; then
+                chown "$PROJECT_USER":"$PROJECT_USER" "$PROJECT_DIR/.project_user" 2>/dev/null || true
+            fi
+        fi
+        echo "✓ Project user saved to .project_user file"
+    fi
     
     echo ""
     echo "========================================"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Restore Manager
-Version: 2.0.5/1.1.7
+Version: 2.0.6/1.1.7
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Backup Manager - Configuration Setup
-Version: 1.1.0/1.0.0
+Version: 2.0.6/1.0.0
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
@@ -14,8 +14,11 @@ import sys
 import yaml
 import json
 import getpass
+import pwd
+import grp
+import stat
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from kma_pg_config_manager import DatabaseConfigManager
 
@@ -23,11 +26,177 @@ from kma_pg_config_manager import DatabaseConfigManager
 class ConfigSetup:
     """Interactive configuration setup manager"""
     
-    def __init__(self):
-        """Initialize configuration setup"""
+    def __init__(self, config_owner: Optional[str] = None):
+        """Initialize configuration setup
+        
+        Args:
+            config_owner: Username to set as owner of config files (default: current user)
+        """
         self.config_manager = DatabaseConfigManager()
         self.config_dir = Path("config")
         self.config_dir.mkdir(exist_ok=True)
+        
+        # Determine config owner
+        # Priority: explicit parameter > PROJECT_USER env var > .project_user file > SUDO_USER > USER
+        # Note: PROJECT_USER is set by init_project.sh and saved to .project_user file
+        if config_owner:
+            self.config_owner = config_owner
+        else:
+            # Try to get from environment variable first
+            project_user = os.environ.get('PROJECT_USER')
+            
+            # If not in environment, try to read from .project_user file
+            if not project_user:
+                project_user_file = Path('.project_user')
+                if project_user_file.exists():
+                    try:
+                        project_user = project_user_file.read_text().strip()
+                    except Exception:
+                        pass
+            
+            self.config_owner = (project_user or 
+                               os.environ.get('SUDO_USER') or 
+                               os.environ.get('USER') or 
+                               os.getlogin())
+        
+        # Get current effective user
+        try:
+            current_user = os.getlogin()
+        except:
+            current_user = os.environ.get('USER', os.environ.get('SUDO_USER', 'unknown'))
+        
+        # Check if we're running as root/administrator
+        self.is_root = os.geteuid() == 0
+        
+        # Informational messages
+        if self.is_root:
+            print(f"ℹ Running as root/administrator, will set ownership to: {self.config_owner}")
+            print(f"ℹ All configuration files will be owned by '{self.config_owner}' with 0600 permissions")
+        elif current_user != self.config_owner:
+            print(f"ℹ Current user: {current_user}, target owner: {self.config_owner}")
+            print(f"ℹ If files are already owned by '{self.config_owner}', permissions will be set correctly")
+            print(f"ℹ If files are owned by different user, root may be needed to change ownership")
+    
+    def _set_file_permissions(self, file_path: Path):
+        """Set file owner and permissions (read/write for owner only)"""
+        try:
+            # Get user and group IDs
+            try:
+                user_info = pwd.getpwnam(self.config_owner)
+                uid = user_info.pw_uid
+                gid = user_info.pw_gid
+            except KeyError:
+                # User not found, skip ownership change
+                print(f"⚠ Warning: User '{self.config_owner}' not found, skipping ownership change")
+                return
+            
+            # Set ownership
+            # If running as root/administrator, os.chown works directly (root can change ownership to any user)
+            # If running as kma_pg (non-root), we can only change ownership if we already own the file
+            # Since kma_pg doesn't have sudo, we cannot change ownership of files owned by other users
+            
+            try:
+                os.chown(file_path, uid, gid)
+                if self.is_root:
+                    # Successfully changed ownership as root/administrator
+                    pass
+            except PermissionError:
+                # Can't change ownership - check if file is already owned by correct user
+                try:
+                    current_stat = file_path.stat()
+                    if current_stat.st_uid == uid:
+                        # File is already owned by correct user (kma_pg), that's fine
+                        pass
+                    else:
+                        # File is owned by different user and we can't change it
+                        try:
+                            current_owner = pwd.getpwuid(current_stat.st_uid).pw_name
+                        except:
+                            current_owner = f"uid:{current_stat.st_uid}"
+                        
+                        print(f"⚠ Warning: Cannot change ownership of {file_path}")
+                        print(f"   Current owner: {current_owner}, required: {self.config_owner}")
+                        if not self.is_root:
+                            print(f"   Suggestion: Run as root/administrator to set ownership, or ensure file is owned by {self.config_owner}")
+                        # Continue to set permissions anyway (they might be changeable if we own the file)
+                except Exception:
+                    pass
+            
+            # Set permissions: read/write for owner only (0600)
+            # This should work if we own the file or are root
+            try:
+                file_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            except PermissionError:
+                print(f"⚠ Warning: Cannot set permissions for {file_path} (may need root)")
+            
+        except Exception as e:
+            # Don't fail if we can't set permissions
+            print(f"⚠ Warning: Could not set permissions for {file_path}: {e}")
+    
+    def _set_directory_permissions(self, dir_path: Path):
+        """Set directory owner and permissions (read/write/execute for owner only)"""
+        try:
+            # Get user and group IDs
+            try:
+                user_info = pwd.getpwnam(self.config_owner)
+                uid = user_info.pw_uid
+                gid = user_info.pw_gid
+            except KeyError:
+                # User not found, skip ownership change
+                return
+            
+            # Set ownership
+            # If running as root/administrator, change ownership recursively
+            # If running as kma_pg, only change if we already own the directory
+            
+            try:
+                os.chown(dir_path, uid, gid)
+                if self.is_root:
+                    # Successfully changed ownership as root/administrator
+                    # Also change ownership recursively for all files in directory
+                    for file_path in dir_path.rglob('*'):
+                        try:
+                            os.chown(file_path, uid, gid)
+                        except (PermissionError, OSError):
+                            pass  # Skip files we can't change
+            except PermissionError:
+                # Can't change ownership - check if directory is already owned by correct user
+                try:
+                    current_stat = dir_path.stat()
+                    if current_stat.st_uid == uid:
+                        # Directory is already owned by correct user (kma_pg), that's fine
+                        pass
+                    else:
+                        # Directory is owned by different user and we can't change it
+                        try:
+                            current_owner = pwd.getpwuid(current_stat.st_uid).pw_name
+                        except:
+                            current_owner = f"uid:{current_stat.st_uid}"
+                        
+                        print(f"⚠ Warning: Cannot change ownership of {dir_path}")
+                        print(f"   Current owner: {current_owner}, required: {self.config_owner}")
+                        if not self.is_root:
+                            print(f"   Suggestion: Run as root/administrator to set ownership, or ensure directory is owned by {self.config_owner}")
+                except Exception:
+                    pass
+            
+            # Set permissions: read/write/execute for owner only (0700)
+            try:
+                dir_path.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+            except PermissionError:
+                print(f"⚠ Warning: Cannot set permissions for {dir_path} (may need root)")
+            
+            # Set permissions for all files in directory
+            for file_path in dir_path.rglob('*'):
+                if file_path.is_file():
+                    try:
+                        file_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+                    except PermissionError:
+                        pass  # Skip files we can't change permissions for
+            
+        except Exception as e:
+            # Don't fail if we can't set permissions
+            print(f"⚠ Warning: Could not set permissions for {dir_path}: {e}")
         
     def get_input(self, prompt: str, default: str = None, required: bool = True) -> str:
         """Get user input with default value"""
@@ -235,6 +404,8 @@ class ConfigSetup:
                         'logging': self.setup_logging_config()
                     }
                     self.config_manager.save_main_config(main_config)
+                    # Set file permissions
+                    self._set_file_permissions(self.config_manager.main_config_path)
                     print(f"✅ Main configuration updated: {self.config_manager.main_config_path}")
                 else:
                     print("Note: Main configuration will remain unchanged.")
@@ -256,6 +427,8 @@ class ConfigSetup:
                     'logging': self.setup_logging_config()
                 }
                 self.config_manager.save_main_config(main_config)
+                # Set file permissions
+                self._set_file_permissions(self.config_manager.main_config_path)
                 print(f"✅ Main configuration saved: {self.config_manager.main_config_path}")
                 print("\n--- Database Configurations ---")
         else:
@@ -268,6 +441,8 @@ class ConfigSetup:
             
             # Save main configuration
             self.config_manager.save_main_config(main_config)
+            # Set file permissions
+            self._set_file_permissions(self.config_manager.main_config_path)
             print(f"✅ Main configuration saved to: {self.config_manager.main_config_path}")
             
             # Setup individual database configurations
@@ -303,6 +478,9 @@ class ConfigSetup:
             
             # Save database configuration
             self.config_manager.save_database_config(db_name, db_config)
+            # Set file permissions
+            db_config_path = self.config_manager.databases_dir / f"{db_name}.yaml"
+            self._set_file_permissions(db_config_path)
             print(f"✅ Database configuration saved: {db_name}")
             databases.append(db_name)
         
@@ -517,6 +695,11 @@ class ConfigSetup:
                 with open(config_path, 'w', encoding='utf-8') as f:
                     json.dump(config, f, indent=2, ensure_ascii=False)
             
+            # Set file permissions
+            self._set_file_permissions(config_path)
+            # Also set directory permissions
+            self._set_directory_permissions(self.config_dir)
+            
             print(f"\n✅ Configuration saved to: {config_path}")
             return str(config_path)
             
@@ -548,10 +731,11 @@ def main():
     parser = argparse.ArgumentParser(description='PostgreSQL Backup Manager - Configuration Setup')
     parser.add_argument('--output', '-o', help='Output configuration file path')
     parser.add_argument('--test', '-t', help='Test existing configuration file')
+    parser.add_argument('--owner', help='Username to set as owner of config files (default: current user or PROJECT_USER env var)')
     
     args = parser.parse_args()
     
-    setup = ConfigSetup()
+    setup = ConfigSetup(config_owner=args.owner)
     
     if args.test:
         # Test existing configuration
