@@ -16,7 +16,7 @@ Script application for automatic backup of PostgreSQL databases.
 ## 🚧 Development Status
 
 **Current Status:** In Development & Testing  
-**Version:** 1.0.0 (Beta)  
+**Version:** 2.0.7  
 **Stability:** Under active development  
 
 ### Development Roadmap:
