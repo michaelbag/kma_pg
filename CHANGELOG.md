@@ -3,19 +3,47 @@
 All notable changes to this project will be documented in this file.
 
 > 🚧 **Project Status:** In Development  
-> 📅 **Last Updated:** October 29, 2025
+> 📅 **Last Updated:** November 2025
+
+## [2.0.7] - 2025-11-05
+
+### Changed
+- **Version Update**: Project version updated to 2.0.7
+- **All Scripts**: Version headers updated to reflect new project version
+
+## [2.0.6] - 2025-11-05
+
+### Added
+- **Configuration Suggestions Integration**: Integrated value suggestions from existing configurations into `kma_pg_config_setup.py`
+- **Automatic Configuration Loading**: Setup wizard automatically loads existing configurations and provides suggestions
+- **Enhanced Input Methods**: New `get_input_with_suggestions()` method for interactive field selection
+
+### Changed
+- **Refactored Configuration Setup**: Merged functionality from `kma_pg_config_builder.py` into `kma_pg_config_setup.py`
+- **Improved User Experience**: Setup wizard now offers suggestions for hosts, ports, usernames, output directories, remote storage settings, and log levels
+- **Unified Configuration Tool**: Single script now handles both basic setup and advanced configuration with suggestions
+
+### Removed
+- **kma_pg_config_builder.py**: Removed as functionality fully integrated into `kma_pg_config_setup.py`
+- **CONFIG_BUILDER.md**: Removed documentation file as builder functionality merged into setup
+
+### Technical Improvements
+- Automatic loading of existing database configurations for suggestions
+- Extraction of unique values from existing configs (hosts, ports, usernames, etc.)
+- Smart value suggestions with option to use defaults or enter custom values
+- Maintained all existing setup features (multi-database, file permissions, ~/.pgpass support)
 
 ## [2.0.0] - 2025-10-29
 
 ### Added
 - **Dual-Level Versioning System**: Project and script version management
-- **Interactive Configuration Builder**: GUI-like configuration creation with value suggestions
+- **Interactive Configuration Builder**: GUI-like configuration creation with value suggestions (later merged into setup in v2.0.6)
 - **Advanced Version Management**: Centralized version control with automatic project updates
 - **Comprehensive Status Documentation**: Detailed development status and progress tracking
 
 ### New Features
 - `kma_pg_version.py`: Version management CLI tool
-- `kma_pg_config_builder.py`: Interactive configuration builder
+- `kma_pg_config_builder.py`: Interactive configuration builder (deprecated, merged into `kma_pg_config_setup.py` in v2.0.6)
 - `STATUS.md`: Detailed project status and development progress
 - `VERSIONING.md`: Complete versioning system documentation
 - Version display in all CLI tools
