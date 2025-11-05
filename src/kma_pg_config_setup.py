@@ -123,6 +123,15 @@ class ConfigSetup:
             else:
                 print("Please enter 'custom' or 'plain' (or 'c' for custom, 'p' for plain).")
     
+    def get_password_input(self, prompt: str) -> str:
+        """Get password input with option to use ~/.pgpass"""
+        print(f"\n{prompt}")
+        print("Note: Leave empty to use ~/.pgpass file (PostgreSQL standard password file)")
+        print("      Format: hostname:port:database:username:password")
+        print("      File location: ~/.pgpass (or %APPDATA%\\postgresql\\pgpass.conf on Windows)")
+        password = getpass.getpass("Password (press Enter to use ~/.pgpass): ")
+        return password.strip()
+    
     def setup_database_config(self) -> Dict[str, Any]:
         """Setup database configuration"""
         print("\n=== Database Configuration ===")
@@ -131,7 +140,7 @@ class ConfigSetup:
             'host': self.get_input("PostgreSQL host", "localhost"),
             'port': self.get_number_input("PostgreSQL port", 5432, 1, 65535),
             'username': self.get_input("PostgreSQL username", "postgres"),
-            'password': getpass.getpass("PostgreSQL password: "),
+            'password': self.get_password_input("PostgreSQL password"),
             'databases': self.setup_databases_list()
         }
         
@@ -253,7 +262,7 @@ class ConfigSetup:
             'host': self.get_input("PostgreSQL host", "localhost"),
             'port': self.get_number_input("PostgreSQL port", 5432, 1, 65535),
             'username': self.get_input("PostgreSQL username", "postgres"),
-            'password': getpass.getpass("PostgreSQL password: "),
+            'password': self.get_password_input("PostgreSQL password"),
             'enabled': self.get_boolean_input("Enable backup for this database", True),
             'auto_backup': True
         }
