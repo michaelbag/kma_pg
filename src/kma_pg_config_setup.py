@@ -193,23 +193,86 @@ class ConfigSetup:
         print("Each database can have its own connection credentials and remote storage settings.")
         print()
         
-        use_multi = self.get_boolean_input("Use multi-database configuration mode", True)
-        if not use_multi:
-            return False
+        # Check if main configuration already exists
+        main_config_exists = self.config_manager.main_config_path.exists()
+        existing_databases = []
         
-        # Setup main configuration
-        print("\n--- Main Configuration ---")
-        main_config = {
-            'backup': self.setup_backup_config(),
-            'logging': self.setup_logging_config()
-        }
+        if main_config_exists:
+            try:
+                main_config = self.config_manager.get_main_config()
+                print(f"✓ Found existing main configuration: {self.config_manager.main_config_path}")
+                
+                # Get list of existing database configurations
+                if self.config_manager.databases_dir.exists():
+                    for config_file in self.config_manager.databases_dir.glob("*.yaml"):
+                        db_name = config_file.stem
+                        if self.config_manager.get_database_config(db_name):
+                            existing_databases.append(db_name)
+                    
+                    if existing_databases:
+                        print(f"✓ Found {len(existing_databases)} existing database configuration(s): {', '.join(existing_databases)}")
+            except Exception as e:
+                print(f"⚠ Warning: Could not load existing configuration: {e}")
+                main_config_exists = False
         
-        # Save main configuration
-        self.config_manager.save_main_config(main_config)
-        print(f"✅ Main configuration saved to: {self.config_manager.main_config_path}")
+        if main_config_exists:
+            print("\nOptions:")
+            print("1. Add new database configuration(s) to existing setup")
+            print("2. Update main configuration and add database(s)")
+            print("3. Start fresh (overwrite existing configuration)")
+            print()
+            
+            choice = self.get_input("Choose option (1, 2, or 3)", "1")
+            
+            if choice == "1":
+                # Just add new databases, ask about main config
+                print("\n--- Adding New Database Configurations ---")
+                update_main = self.get_boolean_input("Update main (general) configuration?", False)
+                if update_main:
+                    print("\n--- Main Configuration Update ---")
+                    main_config = {
+                        'backup': self.setup_backup_config(),
+                        'logging': self.setup_logging_config()
+                    }
+                    self.config_manager.save_main_config(main_config)
+                    print(f"✅ Main configuration updated: {self.config_manager.main_config_path}")
+                else:
+                    print("Note: Main configuration will remain unchanged.")
+            elif choice == "2":
+                # Update main config and add databases
+                print("\n--- Main Configuration Update ---")
+                main_config = {
+                    'backup': self.setup_backup_config(),
+                    'logging': self.setup_logging_config()
+                }
+                self.config_manager.save_main_config(main_config)
+                print(f"✅ Main configuration updated: {self.config_manager.main_config_path}")
+                print("\n--- Adding Database Configurations ---")
+            else:
+                # Start fresh
+                print("\n--- Main Configuration ---")
+                main_config = {
+                    'backup': self.setup_backup_config(),
+                    'logging': self.setup_logging_config()
+                }
+                self.config_manager.save_main_config(main_config)
+                print(f"✅ Main configuration saved: {self.config_manager.main_config_path}")
+                print("\n--- Database Configurations ---")
+        else:
+            # Setup main configuration
+            print("\n--- Main Configuration ---")
+            main_config = {
+                'backup': self.setup_backup_config(),
+                'logging': self.setup_logging_config()
+            }
+            
+            # Save main configuration
+            self.config_manager.save_main_config(main_config)
+            print(f"✅ Main configuration saved to: {self.config_manager.main_config_path}")
+            
+            # Setup individual database configurations
+            print("\n--- Database Configurations ---")
         
-        # Setup individual database configurations
-        print("\n--- Database Configurations ---")
         databases = []
         
         while True:
@@ -224,6 +287,7 @@ class ConfigSetup:
             if existing_config:
                 overwrite = self.get_boolean_input(f"Database '{db_name}' already exists. Overwrite?", False)
                 if not overwrite:
+                    print(f"⏭ Skipping database '{db_name}'")
                     continue
             
             # Setup database configuration
@@ -244,13 +308,20 @@ class ConfigSetup:
         
         if databases:
             print(f"\n🎉 Multi-database configuration completed!")
-            print(f"📁 Configured databases: {', '.join(databases)}")
+            print(f"📁 Newly configured databases: {', '.join(databases)}")
+            if existing_databases:
+                print(f"📁 Existing databases: {', '.join(existing_databases)}")
             print(f"📁 Main config: {self.config_manager.main_config_path}")
             print(f"📁 Database configs: {self.config_manager.databases_dir}")
             return True
         else:
-            print("❌ No databases configured")
-            return False
+            if existing_databases:
+                print(f"\n✓ No new databases added. Existing configuration preserved.")
+                print(f"📁 Existing databases: {', '.join(existing_databases)}")
+                return True
+            else:
+                print("❌ No databases configured")
+                return False
     
     def setup_single_database_config(self, database_name: str) -> Dict[str, Any]:
         """Setup configuration for a single database"""
