@@ -512,22 +512,56 @@ install_deps() {
             echo "✓ psycopg2-binary installed (binary package)"
         else
             echo "WARNING: Failed to install psycopg2-binary as binary package"
-            echo "Attempting to install from source (requires libpq-dev)..."
+            echo "Attempting to install from source..."
             
-            # Check if libpq-dev is available
-            if ! dpkg -l | grep -q "^ii.*libpq-dev"; then
+            # Check if pg_config is available (from existing PostgreSQL installation)
+            PG_CONFIG_PATH=$(command -v pg_config 2>/dev/null || which pg_config 2>/dev/null || find /usr -name pg_config 2>/dev/null | head -1)
+            
+            if [ -n "$PG_CONFIG_PATH" ] && [ -x "$PG_CONFIG_PATH" ]; then
+                echo "✓ Found pg_config at: $PG_CONFIG_PATH"
+                echo "Using existing PostgreSQL installation for compilation..."
+                
+                # Get paths from pg_config
+                PG_INCLUDE_DIR=$($PG_CONFIG_PATH --includedir 2>/dev/null || echo "")
+                PG_LIB_DIR=$($PG_CONFIG_PATH --libdir 2>/dev/null || echo "")
+                
+                # Try to install from source using existing PostgreSQL
+                if sudo -u "$PROJECT_USER" bash -c "
+                    cd $PROJECT_DIR
+                    export HOME='$USER_HOME'
+                    export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
+                    source venv/bin/activate
+                    export PG_CONFIG='$PG_CONFIG_PATH'
+                    [ -n '$PG_INCLUDE_DIR' ] && export PG_INCLUDE_DIR='$PG_INCLUDE_DIR' || true
+                    [ -n '$PG_LIB_DIR' ] && export PG_LIB_DIR='$PG_LIB_DIR' || true
+                    pip install --no-cache-dir psycopg2-binary>=2.9.9
+                "; then
+                    echo "✓ psycopg2-binary installed from source using existing PostgreSQL"
+                else
+                    echo "ERROR: Failed to install psycopg2-binary from source"
+                    echo "pg_config found but compilation failed. Please check PostgreSQL installation."
+                    exit 1
+                fi
+            elif ! dpkg -l | grep -q "^ii.*libpq-dev"; then
                 echo ""
-                echo "ERROR: libpq-dev is not installed, but required for psycopg2-binary compilation"
+                echo "ERROR: Cannot install psycopg2-binary:"
+                echo "  - Binary package not available for this platform"
+                echo "  - pg_config not found (PostgreSQL development files missing)"
+                echo "  - libpq-dev package not installed (and cannot be installed due to conflicts)"
                 echo ""
                 echo "Solutions:"
-                echo "1. Install libpq-dev (may require fixing dependencies first):"
-                echo "   sudo apt --fix-broken install"
-                echo "   sudo apt install -y libpq-dev"
                 echo ""
-                echo "2. Or install PostgreSQL 11 compatible version:"
-                echo "   sudo apt install -y postgresql-client-11 libpq-dev"
+                echo "1. If PostgreSQL 11 is installed, ensure pg_config is in PATH:"
+                echo "   which pg_config"
+                echo "   # If not found, locate it:"
+                echo "   find /usr -name pg_config 2>/dev/null"
+                echo "   # Then add to PATH or create symlink:"
+                echo "   sudo ln -s \$(find /usr -name pg_config 2>/dev/null | head -1) /usr/local/bin/pg_config"
                 echo ""
-                echo "3. After installing libpq-dev, run this command manually:"
+                echo "2. If PostgreSQL 11 development files are installed separately,"
+                echo "   ensure they are accessible and pg_config is available."
+                echo ""
+                echo "3. Manual installation after fixing PostgreSQL paths:"
                 echo "   sudo -u $PROJECT_USER bash -c 'cd $PROJECT_DIR && source venv/bin/activate && pip install -r requirements.txt'"
                 echo ""
                 read -p "Continue anyway and try to install other dependencies? (y/N): " -n 1 -r
@@ -535,21 +569,22 @@ install_deps() {
                 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
                     exit 1
                 fi
-            fi
-            
-            # Try to install from source
-            if sudo -u "$PROJECT_USER" bash -c "
-                cd $PROJECT_DIR
-                export HOME='$USER_HOME'
-                export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
-                source venv/bin/activate
-                pip install --no-cache-dir psycopg2-binary>=2.9.9
-            "; then
-                echo "✓ psycopg2-binary installed from source"
             else
-                echo "ERROR: Failed to install psycopg2-binary even from source"
-                echo "Please install libpq-dev and try again"
-                exit 1
+                # libpq-dev is installed, try normal compilation
+                echo "libpq-dev found, attempting standard compilation..."
+                if sudo -u "$PROJECT_USER" bash -c "
+                    cd $PROJECT_DIR
+                    export HOME='$USER_HOME'
+                    export PIP_CACHE_DIR='$USER_HOME/.cache/pip'
+                    source venv/bin/activate
+                    pip install --no-cache-dir psycopg2-binary>=2.9.9
+                "; then
+                    echo "✓ psycopg2-binary installed from source"
+                else
+                    echo "ERROR: Failed to install psycopg2-binary even from source"
+                    echo "Please check PostgreSQL development files installation"
+                    exit 1
+                fi
             fi
         fi
         
