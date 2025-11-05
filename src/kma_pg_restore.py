@@ -155,9 +155,11 @@ class PostgreSQLRestoreManager:
             conn_params = {
                 'host': db_config['host'],
                 'port': db_config['port'],
-                'user': db_config['username'],
-                'password': db_config['password']
+                'user': db_config['username']
             }
+            # Add password only if provided (otherwise use ~/.pgpass)
+            if db_config.get('password'):
+                conn_params['password'] = db_config['password']
             # Add SSL mode if specified
             if 'sslmode' in db_config:
                 conn_params['sslmode'] = db_config['sslmode']
@@ -179,9 +181,11 @@ class PostgreSQLRestoreManager:
             conn_params = {
                 'host': db_config['host'],
                 'port': db_config['port'],
-                'user': db_config['username'],
-                'password': db_config['password']
+                'user': db_config['username']
             }
+            # Add password only if provided (otherwise use ~/.pgpass)
+            if db_config.get('password'):
+                conn_params['password'] = db_config['password']
             # Add SSL mode if specified
             if 'sslmode' in db_config:
                 conn_params['sslmode'] = db_config['sslmode']
