@@ -39,12 +39,16 @@ class ConfigSetup:
         while True:
             value = input(full_prompt).strip()
             if value:
+                # User entered a value, return it
                 return value
-            elif default and not required:
+            elif default is not None:
+                # User pressed Enter, use default value
                 return default
             elif not required:
+                # No default, not required, return empty string
                 return ""
             else:
+                # No default, required field, ask again
                 print("This field is required. Please enter a value.")
     
     def get_boolean_input(self, prompt: str, default: bool = True) -> bool:
