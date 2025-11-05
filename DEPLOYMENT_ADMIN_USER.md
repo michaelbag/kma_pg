@@ -40,6 +40,7 @@ curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | sudo python3.8
 
 #### 1.3 Install System Dependencies
 
+**Standard Installation:**
 ```bash
 # As root
 sudo apt install -y \
@@ -49,6 +50,36 @@ sudo apt install -y \
     build-essential \
     libpq-dev
 ```
+
+**For 1C Server with Fixed apt Packages:**
+
+If you have 1C Server installed with fixed apt packages (e.g., PostgreSQL 11 from external repository), you may encounter dependency conflicts when trying to install `libpq-dev`. In this case:
+
+1. **Skip `libpq-dev` installation** - the script will automatically detect existing PostgreSQL installation
+2. **Ensure `pg_config` is available** - it should be included with your PostgreSQL installation
+3. **The script will use existing PostgreSQL libraries** for compiling `psycopg2-binary`
+
+```bash
+# As root - install only essential packages
+sudo apt install -y \
+    cifs-utils \
+    smbclient \
+    build-essential \
+    python3-venv \
+    python3-pip
+
+# PostgreSQL client tools should already be installed with 1C Server
+# Verify pg_config is available:
+which pg_config
+# If not in PATH, locate it:
+find /usr -name pg_config 2>/dev/null
+```
+
+The initialization script (`init_project.sh`) will automatically:
+- Detect existing PostgreSQL installation via `pg_config`
+- Use existing PostgreSQL libraries for compilation
+- Avoid installing conflicting packages
+- Work without modifying system package versions
 
 ---
 

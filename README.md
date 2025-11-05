@@ -155,6 +155,44 @@ python src/kma_pg_backup.py --test-connection
 
 **See [DEPLOYMENT_ADMIN_USER.md](DEPLOYMENT_ADMIN_USER.md) for detailed deployment guide with administrator/worker user separation.**
 
+**Option 3: Installation on 1C Server with Fixed apt Packages**
+
+This setup is designed for systems with 1C Server installed where apt packages are fixed and cannot be modified (e.g., PostgreSQL 11 from external repository conflicting with standard Ubuntu packages):
+
+```bash
+# As administrator (with sudo):
+# 1. Clone repository
+sudo git clone <repository-url> /opt/kma_pg
+cd /opt/kma_pg
+
+# 2. Run initialization script
+sudo ./init_project.sh
+
+# The script will:
+# - Detect existing PostgreSQL installation (via pg_config)
+# - Use existing PostgreSQL libraries for psycopg2-binary compilation
+# - Avoid installing conflicting apt packages (libpq-dev)
+# - Work with fixed package versions without modifications
+
+# 3. Switch to worker user
+sudo su - kma_pg
+cd /opt/kma_pg
+source venv/bin/activate
+
+# 4. Configure and run backups
+python src/kma_pg_config_setup.py
+python src/kma_pg_backup.py --test-connection
+```
+
+**Key Features:**
+- ✅ Works with fixed apt packages (no package modifications required)
+- ✅ Automatically detects existing PostgreSQL installation via `pg_config`
+- ✅ Uses existing PostgreSQL libraries for compilation
+- ✅ No conflicts with system package versions
+- ✅ Suitable for production 1C Server environments
+
+**Note:** The script automatically detects `pg_config` from your existing PostgreSQL installation and uses it to compile `psycopg2-binary` without requiring `libpq-dev` package installation.
+
 #### Windows Installation
 ```cmd
 # Install PostgreSQL client tools (if not already installed)
