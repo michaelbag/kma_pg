@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Remote Storage Manager
-Version: 2.0.6/1.0.1
+Version: 2.0.7/1.0.1
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
