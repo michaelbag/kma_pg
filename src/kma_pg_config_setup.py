@@ -385,8 +385,16 @@ class ConfigSetup:
         
         # Choose configuration mode
         print("Configuration modes:")
+        print()
         print("1. Single configuration file (legacy mode)")
+        print("   - All databases in one configuration file")
+        print("   - Single connection settings for all databases")
+        print("   - Simple setup, suitable for small deployments")
+        print()
         print("2. Multi-database configuration (recommended)")
+        print("   - Separate configuration file for each database")
+        print("   - Individual connection settings and backup options per database")
+        print("   - Flexible, suitable for production environments")
         print()
         
         mode = self.get_input("Choose mode (1 or 2)", "2")
