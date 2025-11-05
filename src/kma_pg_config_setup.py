@@ -97,8 +97,14 @@ class ConfigSetup:
             except ValueError:
                 print("Please enter a valid number.")
     
-    def get_backup_format_input(self, prompt: str, default: str = "custom") -> str:
+    def get_backup_format_input(self, prompt: str, default: str = "custom", show_description: bool = True) -> str:
         """Get backup format input with short form support (c for custom, p for plain)"""
+        if show_description:
+            print("\nBackup format options:")
+            print("  - custom (c): PostgreSQL custom format - binary format, supports selective restore")
+            print("  - plain (p):  SQL script format - plain text SQL, can be edited and restored with psql")
+            print()
+        
         while True:
             value = input(f"{prompt} [{default}]: ").strip().lower()
             
