@@ -7,9 +7,25 @@ All notable changes to this project will be documented in this file.
 
 ## [2.0.7] - 2025-11-05
 
+### Added
+- **Unified Initialization Script**: Combined `init_project.sh` and `init_ubuntu_server.sh` into a single universal script
+- **Optional System Update**: `init_project.sh` now offers to update system packages (apt update && apt upgrade) for Ubuntu/Debian
+- **Optional User Creation**: `init_project.sh` can now create a new project user or use existing one
+- **Optional Cron Setup**: `init_project.sh` offers to set up automated daily backup via cron
+
 ### Changed
 - **Version Update**: Project version updated to 2.0.7
 - **All Scripts**: Version headers updated to reflect new project version
+- **init_project.sh**: Updated to version 1.0.3, now includes all functionality from both initialization scripts
+- **README.md**: Updated documentation to reflect unified initialization script approach
+
+### Removed
+- **init_ubuntu_server.sh**: Removed as functionality fully integrated into `init_project.sh`
+
+### Technical Improvements
+- Single initialization script supports all Linux distributions (Ubuntu, Debian, CentOS, RHEL)
+- Maintains all existing features: admin/worker separation, 1C server support, Python 3.8 installation for Ubuntu 18.04
+- All optional features (system update, user creation, cron setup) are user-selectable during setup
 
 ## [2.0.6] - 2025-11-05
 

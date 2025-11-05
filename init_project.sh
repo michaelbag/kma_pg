@@ -1,6 +1,6 @@
 #!/bin/bash
 # PostgreSQL Backup Manager - Linux Project Initialization Script
-# Version: 1.0.2
+# Version: 1.0.3
 # Author: Michael BAG <mk@remark.pro>
 # Supported: Ubuntu Server 18.04, 20.04, and other Linux distributions
 #
@@ -16,7 +16,7 @@ PROJECT_DIR="$(pwd)"  # Current directory
 
 echo "========================================"
 echo "PostgreSQL Backup Manager - Linux Setup"
-echo "Version: 1.0.2"
+echo "Version: 1.0.3"
 echo "Author: Michael BAG <mk@remark.pro>"
 echo "========================================"
 echo ""
@@ -34,6 +34,80 @@ detect_os() {
     echo "Detected OS: $OS $VER"
 }
 
+# Update system packages (optional)
+update_system() {
+    echo ""
+    echo "[System Update] Updating system packages..."
+    echo "This may take a few minutes..."
+    
+    # Determine sudo command
+    SUDO_CMD=""
+    if [ "$EUID" -ne 0 ]; then
+        SUDO_CMD="sudo"
+    fi
+    
+    $SUDO_CMD apt update
+    $SUDO_CMD apt upgrade -y
+    
+    echo "✓ System packages updated"
+}
+
+# Create project user (optional)
+create_project_user() {
+    echo ""
+    echo "[User Creation] Create dedicated user for backup operations?"
+    echo ""
+    read -p "Create new user? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        while true; do
+            read -p "Enter username for backup operations [kma_pg]: " username
+            username=${username:-kma_pg}
+            
+            if id -u "$username" >/dev/null 2>&1; then
+                read -p "User '$username' already exists. Use this user? (Y/n): " -n 1 -r use_existing
+                echo
+                if [[ ! $use_existing =~ ^[Nn]$ ]]; then
+                    PROJECT_USER="$username"
+                    export PROJECT_USER
+                    echo "✓ Using existing user '$PROJECT_USER'"
+                    return 0
+                else
+                    read -p "Create a different user instead? (y/N): " -n 1 -r try_another
+                    echo
+                    if [[ ! $try_another =~ ^[Yy]$ ]]; then
+                        return 1
+                    fi
+                    continue
+                fi
+            else
+                # Create user
+                SUDO_CMD=""
+                if [ "$EUID" -ne 0 ]; then
+                    SUDO_CMD="sudo"
+                fi
+                
+                $SUDO_CMD useradd -m -s /bin/bash "$username"
+                
+                # Set up SSH key (if exists)
+                if [ -f ~/.ssh/id_rsa.pub ]; then
+                    $SUDO_CMD mkdir -p /home/$username/.ssh
+                    $SUDO_CMD cp ~/.ssh/id_rsa.pub /home/$username/.ssh/authorized_keys
+                    $SUDO_CMD chown -R $username:$username /home/$username/.ssh
+                    $SUDO_CMD chmod 700 /home/$username/.ssh
+                    $SUDO_CMD chmod 600 /home/$username/.ssh/authorized_keys
+                fi
+                
+                PROJECT_USER="$username"
+                export PROJECT_USER
+                echo "✓ User '$PROJECT_USER' created"
+                return 0
+            fi
+        done
+    fi
+    return 1
+}
+
 # Select project user (who will run the project without sudo)
 select_project_user() {
     echo ""
@@ -43,23 +117,31 @@ select_project_user() {
     echo "without sudo privileges. The administrator will install system dependencies."
     echo ""
     
-    read -p "Enter username who will run the project [$(whoami)]: " username
-    username=${username:-$(whoami)}
-    
-    # Check if user exists
-    if ! id -u "$username" >/dev/null 2>&1; then
-        echo ""
-        echo "ERROR: User '$username' does not exist"
-        echo "Please create the user first or enter an existing username"
-        read -p "Enter username: " username
+    # Try to create user first (optional)
+    if create_project_user; then
+        # User was created, continue
+        :
+    else
+        # User creation was skipped, select existing user
+        read -p "Enter username who will run the project [$(whoami)]: " username
+        username=${username:-$(whoami)}
+        
+        # Check if user exists
         if ! id -u "$username" >/dev/null 2>&1; then
-            echo "ERROR: User '$username' still does not exist. Exiting."
-            exit 1
+            echo ""
+            echo "ERROR: User '$username' does not exist"
+            echo "Please create the user first or enter an existing username"
+            read -p "Enter username: " username
+            if ! id -u "$username" >/dev/null 2>&1; then
+                echo "ERROR: User '$username' still does not exist. Exiting."
+                exit 1
+            fi
         fi
+        
+        PROJECT_USER="$username"
+        export PROJECT_USER  # Export for use in subprocesses
     fi
     
-    PROJECT_USER="$username"
-    export PROJECT_USER  # Export for use in subprocesses
     echo "✓ Project will run under user: $PROJECT_USER"
     echo ""
     
@@ -717,6 +799,38 @@ setup_permissions() {
     fi
 }
 
+# Set up cron job (optional)
+setup_cron() {
+    echo ""
+    echo "[Cron Setup] Setting up automated backup..."
+    
+    read -p "Set up automated daily backup? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        # Get current directory
+        CURRENT_DIR=$(pwd)
+        
+        # Create cron job
+        CRON_JOB="0 2 * * * cd $CURRENT_DIR && source venv/bin/activate && python src/kma_pg_backup.py >> logs/cron.log 2>&1"
+        
+        # Add to crontab for project user
+        if [ -n "$PROJECT_USER" ] && [ "$PROJECT_USER" != "$(whoami)" ]; then
+            SUDO_CMD=""
+            if [ "$EUID" -ne 0 ]; then
+                SUDO_CMD="sudo"
+            fi
+            ($SUDO_CMD -u "$PROJECT_USER" crontab -l 2>/dev/null; echo "$CRON_JOB") | $SUDO_CMD -u "$PROJECT_USER" crontab -
+        else
+            (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+        fi
+        
+        echo "✓ Automated backup scheduled for 2:00 AM daily"
+        echo "  Logs will be written to: logs/cron.log"
+    else
+        echo "Skipping automated backup setup"
+    fi
+}
+
 # Main execution
 main() {
     detect_os
@@ -725,6 +839,15 @@ main() {
     select_project_user
     
     check_requirements
+    
+    # Ask if user wants to update system packages (Ubuntu/Debian only)
+    if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; then
+        read -p "Update system packages (apt update && apt upgrade)? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            update_system
+        fi
+    fi
     
     # Ask if user wants to install system dependencies
     if [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]] || [[ "$OS" == *"CentOS"* ]] || [[ "$OS" == *"Red Hat"* ]]; then
@@ -746,6 +869,9 @@ main() {
     ensure_project_ownership
     
     setup_permissions
+    
+    # Setup cron job (optional)
+    setup_cron
     
     # Save PROJECT_USER to file for use by other scripts (if not already saved)
     if [ -n "$PROJECT_USER" ]; then
@@ -799,6 +925,18 @@ main() {
         echo "To activate virtual environment in the future:"
         echo "   source venv/bin/activate"
     fi
+    
+    # Show cron info if it was set up
+    if crontab -l 2>/dev/null | grep -q "kma_pg_backup.py" || ([ -n "$PROJECT_USER" ] && sudo -u "$PROJECT_USER" crontab -l 2>/dev/null | grep -q "kma_pg_backup.py"); then
+        echo ""
+        echo "5. Check cron job:"
+        if [ -n "$PROJECT_USER" ] && [ "$PROJECT_USER" != "$(whoami)" ]; then
+            echo "   sudo -u $PROJECT_USER crontab -l"
+        else
+            echo "   crontab -l"
+        fi
+    fi
+    
     echo ""
     echo "For Ubuntu Server setup guide, see README.md"
     echo ""

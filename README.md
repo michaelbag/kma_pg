@@ -120,7 +120,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Run initialization
-./init_ubuntu_server.sh
+./init_project.sh
 ```
 
 **Option 2: Administrator/Worker User Separation (Recommended for Production)**
@@ -225,8 +225,13 @@ init_project_windows.bat
 
 **For Ubuntu Server 18.04/20.04:**
 ```bash
-# Run the Ubuntu Server specific script
-./init_ubuntu_server.sh
+# Run the initialization script (supports all Linux distributions)
+./init_project.sh
+# The script will offer to:
+# - Update system packages (optional)
+# - Create dedicated user (optional)
+# - Install system dependencies
+# - Set up automated cron job (optional)
 ```
 
 **For Production Deployment with Administrator/Worker User Separation:**
@@ -893,8 +898,7 @@ kma_pg/
 ├── logs/                    # Logs
 ├── backups/                 # Backups
 ├── venv/                    # Virtual environment
-├── init_project.sh          # Linux/macOS initialization script (supports admin/worker separation)
-├── init_ubuntu_server.sh    # Ubuntu Server 18.04/20.04 setup script
+├── init_project.sh          # Linux/macOS initialization script (supports all Linux distributions, admin/worker separation, optional cron setup)
 ├── init_project_windows.bat # Windows batch initialization script
 ├── init_project_windows.ps1 # Windows PowerShell initialization script
 ├── quick_start_windows.bat  # Windows quick start menu
