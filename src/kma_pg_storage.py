@@ -320,21 +320,64 @@ class RemoteStorageManager:
                     mount_point
                 ]
             else:  # Linux
+                # Check if already mounted
+                if os.path.ismount(mount_point):
+                    print(f"CIFS share already mounted at {mount_point}")
+                    return
+                
                 # Create credentials file
-                creds_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
+                creds_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cifs')
                 creds_file.write(f"username={username}\n")
                 creds_file.write(f"password={password}\n")
                 creds_file.close()
                 
+                # Set secure permissions on credentials file
+                try:
+                    os.chmod(creds_file.name, 0o600)
+                except:
+                    pass
+                
                 # Mount command for Linux
-                mount_cmd = [
-                    'mount', '-t', 'cifs', server, mount_point,
-                    '-o', f'credentials={creds_file.name},uid={os.getuid()},gid={os.getgid()}'
-                ]
+                # Try mount.cifs first, then regular mount, then sudo mount
+                mount_options = f'credentials={creds_file.name},uid={os.getuid()},gid={os.getgid()}'
+                
+                # Try mount.cifs (preferred method)
+                mount_cmd = None
+                if shutil.which('mount.cifs'):
+                    mount_cmd = [
+                        'mount.cifs', server, mount_point,
+                        '-o', mount_options
+                    ]
+                else:
+                    # Fallback to regular mount
+                    mount_cmd = [
+                        'mount', '-t', 'cifs', server, mount_point,
+                        '-o', mount_options
+                    ]
             
             # Execute mount
             result = subprocess.run(mount_cmd, capture_output=True, text=True)
             if result.returncode != 0:
+                # Check if error is about permissions (root required)
+                if "only root can" in result.stderr.lower() or "permission denied" in result.stderr.lower():
+                    # Try with sudo if available
+                    if shutil.which('sudo'):
+                        print(f"Regular mount failed (requires root). Trying with sudo...")
+                        sudo_cmd = ['sudo'] + mount_cmd
+                        result = subprocess.run(sudo_cmd, capture_output=True, text=True)
+                        if result.returncode == 0:
+                            print(f"CIFS share mounted at {mount_point} (using sudo)")
+                            return
+                    # If sudo also failed or not available, provide helpful error message
+                    raise RuntimeError(
+                        f"Failed to mount CIFS share: {result.stderr}\n"
+                        f"Tip: Mounting CIFS requires root privileges. Options:\n"
+                        f"  1. Configure sudo without password for mount command:\n"
+                        f"     sudo visudo -f /etc/sudoers.d/kma_pg\n"
+                        f"     Add: kma_pg ALL=(ALL) NOPASSWD: /usr/bin/mount, /usr/bin/umount, /usr/sbin/mount.cifs\n"
+                        f"  2. Configure /etc/fstab for automatic mounting (recommended)\n"
+                        f"  3. Run backup script with sudo (not recommended for security)"
+                    )
                 # Check if error is "File exists" - this means directory exists but not mounted
                 if "File exists" in result.stderr or "mount: /" in result.stderr:
                     # Try to use the existing directory if it's accessible
@@ -379,7 +422,22 @@ class RemoteStorageManager:
                         # Fallback to umount if diskutil fails
                         subprocess.run(['umount', mount_point], check=True, timeout=10)
                 else:  # Linux
-                    subprocess.run(['umount', mount_point], check=True, timeout=10)
+                    unmount_cmd = ['umount', mount_point]
+                    result = subprocess.run(unmount_cmd, capture_output=True, text=True, timeout=10)
+                    if result.returncode != 0:
+                        # Check if error is about permissions (root required)
+                        if "only root can" in result.stderr.lower() or "permission denied" in result.stderr.lower():
+                            # Try with sudo if available
+                            if shutil.which('sudo'):
+                                print(f"Regular unmount failed (requires root). Trying with sudo...")
+                                sudo_cmd = ['sudo'] + unmount_cmd
+                                result = subprocess.run(sudo_cmd, capture_output=True, text=True, timeout=10)
+                                if result.returncode != 0:
+                                    raise RuntimeError(f"Failed to unmount CIFS share: {result.stderr}")
+                            else:
+                                raise RuntimeError(f"Failed to unmount CIFS share: {result.stderr}")
+                        else:
+                            raise RuntimeError(f"Failed to unmount CIFS share: {result.stderr}")
                 
                 print(f"CIFS share unmounted from {mount_point}")
                 # Remove from tracking
@@ -389,6 +447,7 @@ class RemoteStorageManager:
         except Exception as e:
             error_msg = mask_password(str(e))
             print(f"Error unmounting CIFS share: {error_msg}")
+            raise
     
     def cleanup_all_mounts(self):
         """Unmount all tracked mount points"""
