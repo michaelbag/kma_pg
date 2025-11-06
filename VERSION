@@ -1,11 +1,11 @@
 {
-  "project": "2.0.7",
+  "project": "2.0.8",
   "scripts": {
     "kma_pg_backup.py": "1.0.3",
     "kma_pg_restore.py": "1.1.7",
     "kma_pg_storage.py": "1.0.1",
-    "kma_pg_config_setup.py": "1.0.3",
-    "kma_pg_config_manager.py": "1.0.0",
+    "kma_pg_config_setup.py": "1.1.4",
+    "kma_pg_config_manager.py": "1.1.3",
     "kma_pg_retention.py": "1.0.0"
   }
 }

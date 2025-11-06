@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PostgreSQL Backup Manager - Configuration Manager
-Version: 2.0.7/1.0.0
+Version: 2.0.8/1.1.3
 Author: Michael BAG
 Email: mk@remark.pro
 Telegram: https://t.me/michaelbag
