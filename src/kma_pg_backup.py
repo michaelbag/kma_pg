@@ -195,7 +195,7 @@ class PostgreSQLBackupManager:
             }
             # Add password only if provided (otherwise use ~/.pgpass)
             if db_config.get('password'):
-                conn_params['password'] = db_config['password']
+                conn_params['password'] = db_config.get('password')
             # Add SSL mode if specified
             if 'sslmode' in db_config:
                 conn_params['sslmode'] = db_config['sslmode']
@@ -311,10 +311,11 @@ class PostgreSQLBackupManager:
         if compress and backup_format != 'custom':
             cmd.extend(['-Z', '9'])
         
-        # Set environment variable for password
+        # Set environment variable for password (if provided, otherwise pg_dump will use ~/.pgpass)
         env = os.environ.copy()
-        if db_config['password']:
-            env['PGPASSWORD'] = db_config['password']
+        password = db_config.get('password')
+        if password:
+            env['PGPASSWORD'] = password
         
         try:
             self.logger.info(f"Creating database backup: {database}")
@@ -498,7 +499,7 @@ class PostgreSQLBackupManager:
             }
             # Add password only if provided (otherwise use ~/.pgpass)
             if db_config.get('password'):
-                conn_params['password'] = db_config['password']
+                conn_params['password'] = db_config.get('password')
             # Add SSL mode if specified
             if 'sslmode' in db_config:
                 conn_params['sslmode'] = db_config['sslmode']

@@ -159,7 +159,7 @@ class PostgreSQLRestoreManager:
             }
             # Add password only if provided (otherwise use ~/.pgpass)
             if db_config.get('password'):
-                conn_params['password'] = db_config['password']
+                conn_params['password'] = db_config.get('password')
             # Add SSL mode if specified
             if 'sslmode' in db_config:
                 conn_params['sslmode'] = db_config['sslmode']
@@ -185,7 +185,7 @@ class PostgreSQLRestoreManager:
             }
             # Add password only if provided (otherwise use ~/.pgpass)
             if db_config.get('password'):
-                conn_params['password'] = db_config['password']
+                conn_params['password'] = db_config.get('password')
             # Add SSL mode if specified
             if 'sslmode' in db_config:
                 conn_params['sslmode'] = db_config['sslmode']
@@ -231,8 +231,10 @@ class PostgreSQLRestoreManager:
             
             # Set environment variables for password and SSL
             env = os.environ.copy()
-            if db_config['password']:
-                env['PGPASSWORD'] = db_config['password']
+            # Set environment variable for password (if provided, otherwise pg_restore will use ~/.pgpass)
+            password = db_config.get('password')
+            if password:
+                env['PGPASSWORD'] = password
             # Add SSL mode if specified
             if 'sslmode' in db_config:
                 env['PGSSLMODE'] = db_config['sslmode']
@@ -330,8 +332,10 @@ class PostgreSQLRestoreManager:
         ]
         
         env = os.environ.copy()
-        if db_config['password']:
-            env['PGPASSWORD'] = db_config['password']
+        # Set environment variable for password (if provided, otherwise pg_restore will use ~/.pgpass)
+        password = db_config.get('password')
+        if password:
+            env['PGPASSWORD'] = password
         # Add SSL mode if specified (via environment variable)
         if 'sslmode' in db_config:
             env['PGSSLMODE'] = db_config['sslmode']
@@ -418,8 +422,10 @@ class PostgreSQLRestoreManager:
         ]
         
         env = os.environ.copy()
-        if db_config['password']:
-            env['PGPASSWORD'] = db_config['password']
+        # Set environment variable for password (if provided, otherwise psql will use ~/.pgpass)
+        password = db_config.get('password')
+        if password:
+            env['PGPASSWORD'] = password
         # Add SSL mode if specified (via environment variable)
         if 'sslmode' in db_config:
             env['PGSSLMODE'] = db_config['sslmode']

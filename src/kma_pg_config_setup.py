@@ -555,14 +555,20 @@ class ConfigSetup:
             else:
                 print("Please enter 'custom' or 'plain' (or 'c' for custom, 'p' for plain).")
     
-    def get_password_input(self, prompt: str) -> str:
-        """Get password input with option to use ~/.pgpass"""
+    def get_password_input(self, prompt: str) -> Optional[str]:
+        """Get password input with option to use ~/.pgpass
+        
+        Returns:
+            Password string if provided, None if empty (will use ~/.pgpass automatically)
+        """
         print(f"\n{prompt}")
         print("Note: Leave empty to use ~/.pgpass file (PostgreSQL standard password file)")
+        print("      pg_dump and pg_restore will automatically read passwords from ~/.pgpass")
         print("      Format: hostname:port:database:username:password")
         print("      File location: ~/.pgpass (or %APPDATA%\\postgresql\\pgpass.conf on Windows)")
         password = getpass.getpass("Password (press Enter to use ~/.pgpass): ")
-        return password.strip()
+        password = password.strip()
+        return password if password else None
     
     def setup_database_config(self) -> Dict[str, Any]:
         """Setup database configuration"""
@@ -572,9 +578,13 @@ class ConfigSetup:
             'host': self.get_input("PostgreSQL host", "localhost"),
             'port': self.get_number_input("PostgreSQL port", 5432, 1, 65535),
             'username': self.get_input("PostgreSQL username", "postgres"),
-            'password': self.get_password_input("PostgreSQL password"),
             'databases': self.setup_databases_list()
         }
+        
+        # Only add password if provided (otherwise pg_dump/pg_restore will use ~/.pgpass)
+        password = self.get_password_input("PostgreSQL password")
+        if password:
+            config['password'] = password
         
         return config
     
@@ -796,10 +806,14 @@ class ConfigSetup:
             'host': self.get_input_with_suggestions("PostgreSQL host", 'hosts', "localhost", required=True),
             'port': int(self.get_input_with_suggestions("PostgreSQL port", 'ports', "5432", required=True, input_type="int")),
             'username': self.get_input_with_suggestions("PostgreSQL username", 'usernames', "postgres", required=True),
-            'password': self.get_password_input("PostgreSQL password"),
             'enabled': self.get_boolean_input("Enable backup for this database", True),
             'auto_backup': True
         }
+        
+        # Only add password if provided (otherwise pg_dump/pg_restore will use ~/.pgpass)
+        password = self.get_password_input("PostgreSQL password")
+        if password:
+            db_config['password'] = password
         
         if db_config['enabled']:
             db_config['auto_backup'] = self.get_boolean_input("Include in automatic backup", True)
