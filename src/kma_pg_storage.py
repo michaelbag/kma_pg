@@ -422,11 +422,21 @@ class RemoteStorageManager:
                         # Fallback to umount if diskutil fails
                         subprocess.run(['umount', mount_point], check=True, timeout=10)
                 else:  # Linux
-                    unmount_cmd = ['umount', mount_point]
+                    # Find umount command (try /bin/umount, /usr/bin/umount, or just umount)
+                    umount_path = shutil.which('umount') or '/bin/umount'
+                    unmount_cmd = [umount_path, mount_point]
                     result = subprocess.run(unmount_cmd, capture_output=True, text=True, timeout=10)
                     if result.returncode != 0:
                         # Check if error is about permissions (root required)
-                        if "only root can" in result.stderr.lower() or "permission denied" in result.stderr.lower():
+                        error_lower = result.stderr.lower()
+                        is_permission_error = (
+                            "only root can" in error_lower or 
+                            "permission denied" in error_lower or
+                            "operation not permitted" in error_lower or
+                            "not permitted" in error_lower
+                        )
+                        
+                        if is_permission_error:
                             # Try with sudo if available
                             if shutil.which('sudo'):
                                 print(f"Regular unmount failed (requires root). Trying with sudo...")
