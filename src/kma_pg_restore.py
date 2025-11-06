@@ -595,7 +595,7 @@ def main():
                        help='Path to global configuration file (default: config/config.yaml). Used with --database-config to override default global config.')
     parser.add_argument('--database-config', '-D', help='Use specific database configuration (config name from config/databases/)')
     parser.add_argument('--backup-file', '-f', help='Path to backup file (local or remote filename)')
-    parser.add_argument('--database', '-d', help='Database name for restore')
+    parser.add_argument('--database', '-d', help='Database name for restore. If --database-config is also specified, this overrides the database name from config (useful for restoring into a different database using same connection settings)')
     parser.add_argument('--create-db', '-n', action='store_true', help='Create database before restore')
     parser.add_argument('--clean-db', '-X', action='store_true', help='Clean database before restore (drop and recreate)')
     parser.add_argument('--remote-storage', '-r', action='store_true', help='Restore from remote storage')
@@ -663,8 +663,10 @@ def main():
             return
         
         # Determine target database
+        # Priority: --database parameter > database name from config
+        # This allows restoring backup from one database into another using same connection settings
         if args.database:
-            # Database name explicitly provided via --database parameter
+            # Database name explicitly provided via --database parameter (has priority)
             target_database = args.database
             # Check if configuration has database connection settings
             if 'database' not in manager.config:
@@ -673,7 +675,7 @@ def main():
                     f"Use --database-config/-D to specify a database configuration, or ensure main config has database connection settings."
                 )
         elif args.database_config:
-            # Get database name from configuration
+            # Get database name from configuration (when --database is not specified)
             if 'database' not in manager.config:
                 raise ValueError(f"Configuration for '{args.database_config}' does not contain 'database' section")
             if 'name' not in manager.config['database']:

@@ -780,6 +780,7 @@ python src/kma_pg_restore.py -f backup_file.dump -d target_database -n
 ### Restore backup into a different database (with config)
 ```bash
 # Local backup file, restore into a different DB name using a named config
+# Use case: Restore production backup into test database using production connection settings
 source venv/bin/activate
 python src/kma_pg_restore.py \
   --database-config production \
@@ -797,6 +798,11 @@ python src/kma_pg_restore.py \
   --create-db \
   --clean-db
 ```
+
+**Note:** When both `--database-config/-D` and `--database/-d` are specified:
+- `--database-config/-D` provides connection settings (host, port, username, password)
+- `--database/-d` overrides the database name from config (allows restoring into a different database)
+- This is useful for restoring production backups into test/staging databases using the same connection settings
 
 ### List available backups
 ```bash
