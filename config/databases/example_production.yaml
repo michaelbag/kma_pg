@@ -16,7 +16,14 @@ database:
   username: backup_user
   
   # Database password (use strong, secure passwords for production)
+  # If password is empty or this field is omitted, pg_dump and pg_restore will
+  # automatically use ~/.pgpass file (PostgreSQL standard password file).
+  # Format: hostname:port:database:username:password
+  # Location: ~/.pgpass (or %APPDATA%\postgresql\pgpass.conf on Windows)
+  # Note: If using ~/.pgpass, omit this field entirely or set it to empty string
   password: "your_secure_production_password"
+  # password: ""  # Use this to explicitly use ~/.pgpass
+  # # Omit password field entirely to use ~/.pgpass
   
   # Enable this database for backup operations
   enabled: true
