@@ -613,17 +613,33 @@ def main():
     
     try:
         # Determine configuration mode
+        # If --database-config is specified, use that configuration
+        # If only --database is specified, try to use config with same name, or use main config
         if args.database_config:
             # Use specific database configuration
             manager = PostgreSQLRestoreManager(
                 database_name=args.database_config,
                 main_config_path=args.config if args.config else None
             )
+        elif args.database and not args.database_config:
+            # Only --database specified, try to find config with same name
+            temp_manager = DatabaseConfigManager(main_config_path=args.config if args.config else None)
+            test_config = temp_manager.get_merged_config(args.database)
+            if test_config and 'database' in test_config:
+                # Found config with same name, use it
+                manager = PostgreSQLRestoreManager(
+                    database_name=args.database,
+                    main_config_path=args.config if args.config else None
+                )
+            else:
+                # No config found, use main config (may not have database section)
+                manager = PostgreSQLRestoreManager(main_config_path=args.config if args.config else None)
         elif args.config:
             # Use legacy configuration file
             manager = PostgreSQLRestoreManager(config_path=args.config)
         else:
-            # Use main configuration
+            # Use main configuration (for connection settings only)
+            # Database name will come from --database parameter
             manager = PostgreSQLRestoreManager()
         
         if args.list_backups:
@@ -648,11 +664,24 @@ def main():
         
         # Determine target database
         if args.database:
+            # Database name explicitly provided via --database parameter
             target_database = args.database
+            # Check if configuration has database connection settings
+            if 'database' not in manager.config:
+                raise ValueError(
+                    f"Configuration does not contain 'database' section with connection settings.\n"
+                    f"Use --database-config/-D to specify a database configuration, or ensure main config has database connection settings."
+                )
         elif args.database_config:
+            # Get database name from configuration
+            if 'database' not in manager.config:
+                raise ValueError(f"Configuration for '{args.database_config}' does not contain 'database' section")
+            if 'name' not in manager.config['database']:
+                raise ValueError(f"Configuration for '{args.database_config}' does not contain database name")
             target_database = manager.config['database']['name']
         else:
-            target_database = args.database
+            # This should not happen due to argument check above, but handle it anyway
+            parser.error("--database/-d or --database-config is required")
         
         if not manager.test_connection():
             sys.exit(1)
