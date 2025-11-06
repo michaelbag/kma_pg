@@ -80,6 +80,9 @@ class ConfigSetup:
         # Load existing configurations for suggestions
         self.existing_configs = self._load_existing_configs()
         self.suggestions = self._extract_suggestions()
+        
+        # Track saved config paths for fallback
+        self.saved_config_paths = []
     
     def _set_file_permissions(self, file_path: Path):
         """Set file owner and permissions (read/write for owner only)"""
@@ -201,6 +204,109 @@ class ConfigSetup:
         except Exception as e:
             # Don't fail if we can't set permissions
             print(f"⚠ Warning: Could not set permissions for {dir_path}: {e}")
+    
+    def _get_home_dir(self) -> Path:
+        """Get user's home directory"""
+        try:
+            return Path.home()
+        except Exception:
+            # Fallback to environment variable
+            home = os.environ.get('HOME') or os.environ.get('USERPROFILE')
+            if home:
+                return Path(home)
+            # Last resort - use current directory
+            return Path.cwd()
+    
+    def _find_available_home_config_path(self, base_name: str, extension: str = '.yaml') -> Path:
+        """Find available config path in home directory with index if needed
+        
+        Args:
+            base_name: Base name for the config file (may include extension)
+            extension: File extension (default: .yaml)
+        
+        Returns:
+            Path to available config file in home directory
+        """
+        home_dir = self._get_home_dir()
+        
+        # Remove extension from base_name if present
+        if base_name.endswith(('.yaml', '.yml', '.json')):
+            base_stem = Path(base_name).stem
+        else:
+            base_stem = base_name
+        
+        # Try base name first
+        config_path = home_dir / f"{base_stem}{extension}"
+        if not config_path.exists():
+            return config_path
+        
+        # Find next available index
+        index = 1
+        while True:
+            config_path = home_dir / f"{base_stem}_{index}{extension}"
+            if not config_path.exists():
+                return config_path
+            index += 1
+    
+    def _safe_save_config_file(self, config: Dict[str, Any], preferred_path: Path, 
+                               config_type: str = "configuration") -> Path:
+        """Safely save configuration file with fallback to home directory
+        
+        Args:
+            config: Configuration dictionary to save
+            preferred_path: Preferred path in project directory
+            config_type: Type of configuration (for user messages)
+        
+        Returns:
+            Path where configuration was actually saved
+        """
+        # Determine file format
+        is_yaml = preferred_path.suffix in ['.yaml', '.yml']
+        
+        # Try to save to preferred location first
+        try:
+            # Create parent directory if needed
+            preferred_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Try to write file
+            with open(preferred_path, 'w', encoding='utf-8') as f:
+                if is_yaml:
+                    yaml.dump(config, f, default_flow_style=False, indent=2, allow_unicode=True)
+                else:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            # Try to set permissions
+            try:
+                self._set_file_permissions(preferred_path)
+            except Exception:
+                pass  # Continue even if permissions fail
+            
+            # Successfully saved to preferred location
+            return preferred_path
+            
+        except (PermissionError, OSError, IOError) as e:
+            # Cannot save to preferred location - fallback to home directory
+            print(f"\n⚠ Warning: Cannot save {config_type} to preferred location: {preferred_path}")
+            print(f"   Error: {e}")
+            print(f"   Saving to home directory instead...")
+            
+            # Find available path in home directory
+            home_path = self._find_available_home_config_path(preferred_path.stem, preferred_path.suffix)
+            
+            try:
+                # Save to home directory
+                with open(home_path, 'w', encoding='utf-8') as f:
+                    if is_yaml:
+                        yaml.dump(config, f, default_flow_style=False, indent=2, allow_unicode=True)
+                    else:
+                        json.dump(config, f, indent=2, ensure_ascii=False)
+                
+                print(f"✅ {config_type.capitalize()} saved to: {home_path}")
+                return home_path
+                
+            except Exception as e2:
+                # Even home directory save failed
+                raise IOError(f"Failed to save {config_type} to both preferred location and home directory: {e2}")
     
     def _load_existing_configs(self) -> List[Dict[str, Any]]:
         """Load all existing database configurations for suggestions"""
@@ -560,10 +666,10 @@ class ConfigSetup:
                         'backup': self.setup_backup_config(),
                         'logging': self.setup_logging_config()
                     }
-                    self.config_manager.save_main_config(main_config)
-                    # Set file permissions
-                    self._set_file_permissions(self.config_manager.main_config_path)
-                    print(f"✅ Main configuration updated: {self.config_manager.main_config_path}")
+                    # Save safely with fallback
+                    saved_path = self._safe_save_config_file(main_config, self.config_manager.main_config_path, "main configuration")
+                    self.saved_config_paths.append(saved_path)
+                    print(f"✅ Main configuration updated: {saved_path}")
                 else:
                     print("Note: Main configuration will remain unchanged.")
             elif choice == "2":
@@ -573,8 +679,10 @@ class ConfigSetup:
                     'backup': self.setup_backup_config(),
                     'logging': self.setup_logging_config()
                 }
-                self.config_manager.save_main_config(main_config)
-                print(f"✅ Main configuration updated: {self.config_manager.main_config_path}")
+                # Save safely with fallback
+                saved_path = self._safe_save_config_file(main_config, self.config_manager.main_config_path, "main configuration")
+                self.saved_config_paths.append(saved_path)
+                print(f"✅ Main configuration updated: {saved_path}")
                 print("\n--- Adding Database Configurations ---")
             else:
                 # Start fresh
@@ -583,10 +691,10 @@ class ConfigSetup:
                     'backup': self.setup_backup_config(),
                     'logging': self.setup_logging_config()
                 }
-                self.config_manager.save_main_config(main_config)
-                # Set file permissions
-                self._set_file_permissions(self.config_manager.main_config_path)
-                print(f"✅ Main configuration saved: {self.config_manager.main_config_path}")
+                # Save safely with fallback
+                saved_path = self._safe_save_config_file(main_config, self.config_manager.main_config_path, "main configuration")
+                self.saved_config_paths.append(saved_path)
+                print(f"✅ Main configuration saved: {saved_path}")
                 print("\n--- Database Configurations ---")
         else:
             # Setup main configuration
@@ -596,11 +704,10 @@ class ConfigSetup:
                 'logging': self.setup_logging_config()
             }
             
-            # Save main configuration
-            self.config_manager.save_main_config(main_config)
-            # Set file permissions
-            self._set_file_permissions(self.config_manager.main_config_path)
-            print(f"✅ Main configuration saved to: {self.config_manager.main_config_path}")
+            # Save main configuration safely with fallback
+            saved_path = self._safe_save_config_file(main_config, self.config_manager.main_config_path, "main configuration")
+            self.saved_config_paths.append(saved_path)
+            print(f"✅ Main configuration saved to: {saved_path}")
             
             # Setup individual database configurations
             print("\n--- Database Configurations ---")
@@ -633,12 +740,13 @@ class ConfigSetup:
                     print(f"  - {error}")
                 continue
             
-            # Save database configuration
-            self.config_manager.save_database_config(db_name, db_config)
-            # Set file permissions
+            # Save database configuration safely with fallback
             db_config_path = self.config_manager.databases_dir / f"{db_name}.yaml"
-            self._set_file_permissions(db_config_path)
-            print(f"✅ Database configuration saved: {db_name}")
+            # Remove internal fields before saving
+            clean_config = {k: v for k, v in db_config.items() if not k.startswith('_')}
+            saved_path = self._safe_save_config_file(clean_config, db_config_path, f"database configuration for '{db_name}'")
+            self.saved_config_paths.append(saved_path)
+            print(f"✅ Database configuration saved: {db_name} -> {saved_path}")
             databases.append(db_name)
         
         if databases:
@@ -646,8 +754,28 @@ class ConfigSetup:
             print(f"📁 Newly configured databases: {', '.join(databases)}")
             if existing_databases:
                 print(f"📁 Existing databases: {', '.join(existing_databases)}")
-            print(f"📁 Main config: {self.config_manager.main_config_path}")
-            print(f"📁 Database configs: {self.config_manager.databases_dir}")
+            
+            # Show all saved configuration paths
+            print(f"\n📋 Configuration files saved:")
+            saved_to_home = False
+            for saved_path in self.saved_config_paths:
+                saved_path_obj = Path(saved_path) if isinstance(saved_path, str) else saved_path
+                main_path = Path(self.config_manager.main_config_path)
+                db_dir = Path(self.config_manager.databases_dir)
+                
+                if saved_path_obj.resolve() == main_path.resolve() or saved_path_obj.parent.resolve() == db_dir.resolve():
+                    print(f"   ✓ {saved_path} (project directory)")
+                else:
+                    saved_to_home = True
+                    print(f"   ⚠ {saved_path} (home directory - saved due to insufficient permissions)")
+            
+            # Show intended locations if different
+            if saved_to_home:
+                print(f"\n💡 Note: Some configurations were saved to home directory due to insufficient permissions.")
+                print(f"   Intended locations:")
+                print(f"   - Main config: {self.config_manager.main_config_path}")
+                print(f"   - Database configs: {self.config_manager.databases_dir}")
+            
             return True
         else:
             if existing_databases:
@@ -678,6 +806,8 @@ class ConfigSetup:
         
         # Database-specific backup settings
         print(f"\n--- Backup Settings for {database_name} ---")
+        print("Note: If 'No' - uses settings from main config (output_dir, format, compress, retention_days).")
+        print("      If 'Yes' - allows individual backup settings for this database only.")
         use_custom_backup = self.get_boolean_input("Use custom backup settings for this database", False)
         
         if use_custom_backup:
@@ -808,6 +938,16 @@ class ConfigSetup:
         if mode == "2":
             # Multi-database configuration
             if self.setup_multi_database_config():
+                # Return the actual saved main config path (may be in home directory)
+                if self.saved_config_paths:
+                    # Find main config path (first one saved, or the one matching main_config_path)
+                    main_path = Path(self.config_manager.main_config_path)
+                    for saved_path in self.saved_config_paths:
+                        saved_path_obj = Path(saved_path) if isinstance(saved_path, str) else saved_path
+                        if saved_path_obj.resolve() == main_path.resolve():
+                            return str(saved_path_obj)
+                    # If not found, return first saved (should be main config)
+                    return str(Path(self.saved_config_paths[0]) if isinstance(self.saved_config_paths[0], str) else self.saved_config_paths[0])
                 return str(self.config_manager.main_config_path)
             else:
                 print("❌ Multi-database configuration failed")
@@ -841,24 +981,20 @@ class ConfigSetup:
         else:
             config_path = Path(config_path)
         
-        # Save configuration
+        # Save configuration safely (with fallback to home directory)
         try:
-            config_path.parent.mkdir(parents=True, exist_ok=True)
+            saved_path = self._safe_save_config_file(config, config_path, "configuration")
+            self.saved_config_paths.append(saved_path)
             
-            if config_path.suffix in ['.yaml', '.yml']:
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(config, f, default_flow_style=False, indent=2, allow_unicode=True)
-            else:
-                with open(config_path, 'w', encoding='utf-8') as f:
-                    json.dump(config, f, indent=2, ensure_ascii=False)
+            # Try to set directory permissions (if we saved to project directory)
+            if saved_path == config_path:
+                try:
+                    self._set_directory_permissions(self.config_dir)
+                except Exception:
+                    pass  # Continue even if directory permissions fail
             
-            # Set file permissions
-            self._set_file_permissions(config_path)
-            # Also set directory permissions
-            self._set_directory_permissions(self.config_dir)
-            
-            print(f"\n✅ Configuration saved to: {config_path}")
-            return str(config_path)
+            print(f"\n✅ Configuration saved to: {saved_path}")
+            return str(saved_path)
             
         except Exception as e:
             print(f"❌ Error saving configuration: {e}")
