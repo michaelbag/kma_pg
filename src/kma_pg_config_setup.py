@@ -833,9 +833,15 @@ class ConfigSetup:
                 'remote_storage': self.setup_remote_storage_config()
             }
         else:
-            backup_config = {
-                'remote_storage': self.setup_remote_storage_config()
-            }
+            # When using main config backup settings, ask separately about remote storage
+            backup_config = {}
+            print(f"\n--- Remote Storage Settings for {database_name} ---")
+            print("Note: If 'No' - uses remote storage settings from main config.")
+            print("      If 'Yes' - allows individual remote storage settings for this database only.")
+            use_custom_remote = self.get_boolean_input("Use custom remote storage settings for this database", False)
+            if use_custom_remote:
+                backup_config['remote_storage'] = self.setup_remote_storage_config()
+            # If No, don't add remote_storage - it will be inherited from main config
         
         # Database-specific logging settings
         print(f"\n--- Logging Settings for {database_name} ---")

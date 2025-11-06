@@ -257,6 +257,108 @@ class DatabaseConfigManager:
             merged['logging'].update(db_config['logging'])
         
         return merged
+    
+    def show_backup_policy(self, database_name: str = None) -> str:
+        """Display backup policy for configuration
+        
+        Args:
+            database_name: Database name or config filename. If None, shows main config policy.
+        
+        Returns:
+            Formatted string with backup policy information
+        """
+        if database_name:
+            # Get merged config for specific database
+            config = self.get_merged_config(database_name)
+            if not config:
+                return f"Error: Database configuration '{database_name}' not found"
+            config_source = f"Database: {database_name}"
+        else:
+            # Get main config only
+            config = self.get_main_config()
+            config_source = "Main configuration"
+        
+        backup_config = config.get('backup', {})
+        if not backup_config:
+            return f"{config_source}\nNo backup configuration found"
+        
+        output = []
+        output.append(f"\n{'='*60}")
+        output.append(f"Backup Policy: {config_source}")
+        output.append(f"{'='*60}\n")
+        
+        # Basic backup settings
+        output.append("Basic Settings:")
+        output.append(f"  Output directory: {backup_config.get('output_dir', 'N/A')}")
+        output.append(f"  Format: {backup_config.get('format', 'N/A')}")
+        output.append(f"  Compression: {'Enabled' if backup_config.get('compress', False) else 'Disabled'}")
+        exclude_sys = backup_config.get('exclude_system_objects', True)
+        output.append(f"  Exclude system objects: {'Yes' if exclude_sys else 'No'}")
+        output.append("")
+        
+        # Retention policy
+        retention = backup_config.get('retention', {})
+        retention_days = backup_config.get('retention_days')
+        
+        if retention:
+            output.append("Retention Policy (Advanced):")
+            
+            # Local storage retention
+            local_ret = retention.get('local', {})
+            if local_ret:
+                output.append("  Local Storage:")
+                output.append(f"    Daily backups:   {local_ret.get('daily', 'N/A')} days")
+                output.append(f"    Weekly backups:  {local_ret.get('weekly', 'N/A')} days")
+                output.append(f"    Monthly backups: {local_ret.get('monthly', 'N/A')} days")
+                output.append(f"    Maximum age:     {local_ret.get('max_age', 'N/A')} days")
+            
+            # Remote storage retention
+            remote_ret = retention.get('remote', {})
+            if remote_ret:
+                output.append("  Remote Storage:")
+                output.append(f"    Daily backups:   {remote_ret.get('daily', 'N/A')} days")
+                output.append(f"    Weekly backups:  {remote_ret.get('weekly', 'N/A')} days")
+                output.append(f"    Monthly backups: {remote_ret.get('monthly', 'N/A')} days")
+                output.append(f"    Maximum age:     {remote_ret.get('max_age', 'N/A')} days")
+        elif retention_days:
+            output.append("Retention Policy (Legacy):")
+            output.append(f"  Retention days: {retention_days} days")
+        else:
+            output.append("Retention Policy: Not configured")
+        
+        output.append("")
+        
+        # Remote storage
+        remote_storage = backup_config.get('remote_storage', {})
+        if remote_storage.get('enabled', False):
+            output.append("Remote Storage: Enabled")
+            storage_type = remote_storage.get('type', 'unknown')
+            output.append(f"  Type: {storage_type}")
+            
+            if storage_type == 'webdav' and 'webdav' in remote_storage:
+                webdav = remote_storage['webdav']
+                output.append(f"  URL: {webdav.get('url', 'N/A')}")
+                output.append(f"  Username: {webdav.get('username', 'N/A')}")
+                output.append(f"  SSL verification: {'Enabled' if webdav.get('verify_ssl', True) else 'Disabled'}")
+            elif storage_type == 'cifs' and 'cifs' in remote_storage:
+                cifs = remote_storage['cifs']
+                output.append(f"  Server: {cifs.get('server', 'N/A')}")
+                output.append(f"  Username: {cifs.get('username', 'N/A')}")
+                output.append(f"  Mount point: {cifs.get('mount_point', 'N/A')}")
+                output.append(f"  Auto mount: {'Yes' if cifs.get('auto_mount', False) else 'No'}")
+            elif storage_type == 'ftp' and 'ftp' in remote_storage:
+                ftp = remote_storage['ftp']
+                output.append(f"  Host: {ftp.get('host', 'N/A')}")
+                output.append(f"  Port: {ftp.get('port', 'N/A')}")
+                output.append(f"  Username: {ftp.get('username', 'N/A')}")
+                output.append(f"  Passive mode: {'Yes' if ftp.get('passive', True) else 'No'}")
+                output.append(f"  SSL/TLS: {'Enabled' if ftp.get('ssl', False) else 'Disabled'}")
+        else:
+            output.append("Remote Storage: Disabled")
+        
+        output.append(f"\n{'='*60}\n")
+        
+        return "\n".join(output)
 
 
 def main():
@@ -267,6 +369,7 @@ def main():
     parser.add_argument('--list', '-l', action='store_true', help='List all databases')
     parser.add_argument('--show', '-s', help='Show configuration for specific database')
     parser.add_argument('--validate', '-v', help='Validate configuration for specific database')
+    parser.add_argument('--policy', '-p', nargs='?', const='', help='Show backup policy (for main config or specific database)')
     
     args = parser.parse_args()
     
@@ -301,6 +404,13 @@ def main():
                 print(f"Configuration for '{args.validate}' is valid")
         else:
             print(f"Database '{args.validate}' not found")
+    
+    elif args.policy is not None:
+        # If --policy without argument, show main config policy
+        # If --policy with argument, show specific database policy
+        database_name = args.policy if args.policy else None
+        policy = manager.show_backup_policy(database_name)
+        print(policy)
     
     else:
         parser.print_help()
