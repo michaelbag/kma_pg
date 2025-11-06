@@ -403,6 +403,27 @@ ls -la config/
 ls -la backups/
 ```
 
+#### 4. CIFS Mount Permission Issues
+
+If you encounter "only root can use --options" error when using CIFS remote storage:
+
+**Option 1: Configure sudo for mount commands (if using auto_mount: true)**
+
+```bash
+# Create sudoers configuration
+sudo visudo -f /etc/sudoers.d/kma_pg
+
+# Add (replace kma_pg with your backup user):
+kma_pg ALL=(ALL) NOPASSWD: /usr/bin/mount, /usr/bin/umount, /usr/sbin/mount.cifs
+
+# Verify syntax
+sudo visudo -c -f /etc/sudoers.d/kma_pg
+```
+
+**Option 2: Use /etc/fstab for automatic mounting**
+
+See [REMOTE_STORAGE.md](REMOTE_STORAGE.md) for detailed instructions on configuring /etc/fstab for CIFS mounting.
+
 ### Log Analysis
 
 ```bash

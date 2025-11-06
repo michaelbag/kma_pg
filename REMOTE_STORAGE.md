@@ -73,7 +73,77 @@ backup:
 #### Requirements:
 - `cifs-utils` package must be installed
 - Mount point directory must exist
-- Appropriate permissions for mounting
+- **Sudo permissions for mount/umount commands** (see below)
+
+#### Sudo Configuration for CIFS Mounting:
+
+On Linux systems, mounting CIFS shares requires root privileges. The backup script automatically uses `sudo` when needed, but the backup user must be configured to run mount commands without a password.
+
+**Option 1: Configure sudo without password (Recommended for auto_mount: true)**
+
+1. Create sudoers configuration file:
+   ```bash
+   sudo visudo -f /etc/sudoers.d/kma_pg
+   ```
+
+2. Add the following line (replace `kma_pg` with your actual backup user):
+   ```
+   kma_pg ALL=(ALL) NOPASSWD: /usr/bin/mount, /usr/bin/umount, /usr/sbin/mount.cifs
+   ```
+
+   Or for different Linux distributions:
+   ```
+   kma_pg ALL=(ALL) NOPASSWD: /usr/bin/mount, /usr/bin/umount, /usr/sbin/mount.cifs, /bin/mount, /bin/umount, /sbin/mount.cifs
+   ```
+
+3. Verify syntax:
+   ```bash
+   sudo visudo -c -f /etc/sudoers.d/kma_pg
+   ```
+
+4. Test sudo access:
+   ```bash
+   sudo -l
+   # Should show the mount/umount commands without password requirement
+   ```
+
+**Option 2: Configure /etc/fstab for automatic mounting (Recommended for production)**
+
+If you prefer not to use sudo, configure automatic mounting via `/etc/fstab`:
+
+1. Create credentials file:
+   ```bash
+   sudo nano /etc/cifs-credentials
+   # Add:
+   username=your_username
+   password=your_password
+   # Set secure permissions:
+   sudo chmod 600 /etc/cifs-credentials
+   ```
+
+2. Add to `/etc/fstab`:
+   ```
+   //server/share /mnt/backup_storage cifs credentials=/etc/cifs-credentials,uid=1000,gid=1000,file_mode=0660,dir_mode=0770 0 0
+   ```
+   (Replace `uid=1000,gid=1000` with your backup user's UID/GID)
+
+3. Test mounting:
+   ```bash
+   sudo mount -a
+   ```
+
+4. Set `auto_mount: false` in configuration to prevent script from mounting/unmounting:
+   ```yaml
+   cifs:
+     server: "//server/share"
+     mount_point: "/mnt/backup_storage"
+     auto_mount: false  # Share is already mounted via /etc/fstab
+   ```
+
+**Security Note:**
+- Option 1 (sudo) is safe because it only grants permission for specific mount commands, not full root access
+- Option 2 (/etc/fstab) is more secure but requires manual mount management
+- The script automatically detects if a share is already mounted and skips mounting if `auto_mount: false`
 
 ## Installation Requirements
 
@@ -182,6 +252,9 @@ python src/backup_manager.py --config config/config.production.yaml --test-remot
 - Check network connectivity to Samba server
 - Verify credentials and share permissions
 - Check mount point permissions
+- **"only root can use --options" error**: Configure sudo permissions (see Sudo Configuration section above)
+- **"Permission denied" error**: Check sudo configuration or use /etc/fstab for automatic mounting
+- **"Failed to mount CIFS share"**: Verify mount point exists and has correct permissions
 
 ### Common Error Messages:
 - `"FTP connection test failed"` - Check host, port, and credentials

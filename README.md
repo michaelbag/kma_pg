@@ -847,6 +847,8 @@ backup:
 
 ### CIFS/Samba Support
 Upload backups to Samba/CIFS shares:
+
+> **Note:** On Linux, CIFS mounting requires root privileges. The script automatically uses `sudo` when needed, but the backup user must be configured to run mount commands without a password. See [REMOTE_STORAGE.md](REMOTE_STORAGE.md) for detailed sudo configuration instructions.
 ```yaml
 backup:
   remote_storage:
@@ -1038,7 +1040,7 @@ python src/kma_pg_backup.py
 For production environments, it's recommended to separate administrator and worker roles:
 
 - **Administrator**: Has sudo rights, performs initial setup
-- **Worker User**: No sudo rights, runs backup operations
+- **Worker User**: Limited sudo rights (only for mount/umount commands if using CIFS with auto_mount), runs backup operations
 
 **Benefits:**
 - ✅ Enhanced security (principle of least privilege)
